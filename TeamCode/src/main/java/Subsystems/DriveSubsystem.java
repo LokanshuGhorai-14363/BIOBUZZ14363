@@ -10,6 +10,9 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
+import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.Path;
+import com.pedropathing.pathgen.Point;
 
 /**
  * DriveSubsystem — Mecanum drive powered by Pedro Pathing's Follower.
@@ -20,11 +23,17 @@ import com.pedropathing.localization.Pose;
  *
  * Motor configuration (goBILDA Yellow Jacket 425 RPM) is handled through
  * the Pedro Pathing constants files {@link FConstants} and {@link LConstants}.
+ *
+ * Also supports autonomous path-following for relocalization and pose
+ * overrides from vision data.
  */
 public class DriveSubsystem extends SubsystemBase {
 
     private final Follower follower;
     private final Telemetry telemetry;
+
+    /** Set to true while the robot is autonomously following a path. */
+    private boolean isFollowingPath = false;
 
     // Starting pose — (0, 0, 0) by default; override in autonomous
     private static final Pose START_POSE = new Pose(0, 0, 0);
@@ -62,6 +71,80 @@ public class DriveSubsystem extends SubsystemBase {
         follower.setTeleOpMovementVectors(0, 0, 0, false);
     }
 
+    // ───────────────────────────── Path following ─────────────────────────────
+
+    /**
+     * Begin autonomously following a path to the given target pose.
+     * Builds a BezierLine from the current pose to the target.
+     *
+     * @param target the destination pose (x, y, heading in radians)
+     */
+    public void followPathTo(Pose target) {
+        Pose current = follower.getPose();
+        Path path = new Path(new BezierLine(
+                new Point(current.getX(), current.getY(), Point.CARTESIAN),
+                new Point(target.getX(), target.getY(), Point.CARTESIAN)
+        ));
+        path.setLinearHeadingInterpolation(current.getHeading(), target.getHeading());
+
+        follower.followPath(path, true);
+        isFollowingPath = true;
+    }
+
+    /**
+     * @return {@code true} if the Follower has completed its current path.
+     */
+    public boolean isPathComplete() {
+        if (!isFollowingPath) return true;
+        boolean done = !follower.isBusy();
+        if (done) {
+            isFollowingPath = false;
+        }
+        return done;
+    }
+
+    /**
+     * @return {@code true} if the robot is currently autonomously following a path.
+     */
+    public boolean isFollowingPath() {
+        return isFollowingPath;
+    }
+
+    /**
+     * Abort any active path follow and resume TeleOp control.
+     */
+    public void cancelPath() {
+        follower.breakFollowing();
+        isFollowingPath = false;
+        follower.startTeleopDrive();
+    }
+
+    /**
+     * Resume TeleOp driving mode after autonomous path completion.
+     */
+    public void resumeTeleOp() {
+        isFollowingPath = false;
+        follower.startTeleopDrive();
+    }
+
+    // ───────────────────────────── Pose management ────────────────────────────
+
+    /**
+     * Override the Follower's internal pose (e.g., from vision relocalization).
+     *
+     * @param pose the corrected pose from vision data
+     */
+    public void setPose(Pose pose) {
+        follower.setPose(pose);
+    }
+
+    /**
+     * @return the current estimated robot pose from odometry.
+     */
+    public Pose getPose() {
+        return follower.getPose();
+    }
+
     // ───────────────────────────── Lifecycle ───────────────────────────────────
 
     /**
@@ -76,6 +159,7 @@ public class DriveSubsystem extends SubsystemBase {
         telemetry.addData("Drive X", pose.getX());
         telemetry.addData("Drive Y", pose.getY());
         telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.getHeading()));
+        telemetry.addData("Path Following", isFollowingPath);
     }
 
     /**
