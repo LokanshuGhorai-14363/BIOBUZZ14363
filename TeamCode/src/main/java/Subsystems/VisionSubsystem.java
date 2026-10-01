@@ -9,7 +9,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import com.pedropathing.localization.Pose;
-
 import java.util.Arrays;
 import java.util.List;
 
