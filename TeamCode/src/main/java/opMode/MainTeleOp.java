@@ -15,11 +15,14 @@ import Commands.DefaultDriveCommand;
 import Commands.IntakeInCommand;
 import Commands.IntakeOutCommand;
 import Commands.LiftDumpSequence;
+import Commands.ShootStartCommand;
+import Commands.ShootStopCommand;
 
 import Subsystems.DriveSubsystem;
 import Subsystems.FlipperSubsystem;
 import Subsystems.IntakeSubsystem;
 import Subsystems.LiftBoxSubsystem;
+import Subsystems.TurretShooterSubsystem;
 
 /**
  * MainTeleOp — primary TeleOp OpMode using the FTCLib Command-based framework.
@@ -32,6 +35,8 @@ import Subsystems.LiftBoxSubsystem;
  *   <tr><td>Right Stick X</td><td>Rotate</td></tr>
  *   <tr><td>Left Trigger (analog)</td><td>Intake IN (proportional)</td></tr>
  *   <tr><td>Left Bumper</td><td>Intake OUT (reverse)</td></tr>
+ *   <tr><td>Right Trigger (analog)</td><td>Turret Shooter START (PID control)</td></tr>
+ *   <tr><td>Right Bumper</td><td>Turret Shooter STOP</td></tr>
  *   <tr><td>D-pad Up</td><td>Lift → Dump → Retract sequence</td></tr>
  * </table>
  *
@@ -49,10 +54,11 @@ import Subsystems.LiftBoxSubsystem;
 public class MainTeleOp extends CommandOpMode {
 
     // ── Subsystems ────────────────────────────────────────────────────────────
-    private DriveSubsystem   driveSubsystem;
-    private IntakeSubsystem  intakeSubsystem;
-    private LiftBoxSubsystem liftBoxSubsystem;
-    private FlipperSubsystem flipperSubsystem;
+    private DriveSubsystem        driveSubsystem;
+    private IntakeSubsystem       intakeSubsystem;
+    private LiftBoxSubsystem      liftBoxSubsystem;
+    private FlipperSubsystem      flipperSubsystem;
+    private TurretShooterSubsystem turretShooterSubsystem;
 
     // ── Gamepad wrapper ───────────────────────────────────────────────────────
     private GamepadEx driverGamepad;
@@ -73,16 +79,17 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         // 2. Instantiate subsystems
         // ────────────────────────────────────────────────────────────────────
-        driveSubsystem   = new DriveSubsystem(hardwareMap, telemetry);
-        intakeSubsystem  = new IntakeSubsystem(hardwareMap, telemetry);
-        liftBoxSubsystem = new LiftBoxSubsystem(hardwareMap, telemetry);
-        flipperSubsystem = new FlipperSubsystem(hardwareMap, telemetry);
+        driveSubsystem        = new DriveSubsystem(hardwareMap, telemetry);
+        intakeSubsystem       = new IntakeSubsystem(hardwareMap, telemetry);
+        liftBoxSubsystem      = new LiftBoxSubsystem(hardwareMap, telemetry);
+        flipperSubsystem      = new FlipperSubsystem(hardwareMap, telemetry);
+        turretShooterSubsystem = new TurretShooterSubsystem(hardwareMap, telemetry);
 
         // ────────────────────────────────────────────────────────────────────
         // 3. Register subsystems with the scheduler
         //    (DriveSubsystem is registered implicitly via setDefaultCommand)
         // ────────────────────────────────────────────────────────────────────
-        register(intakeSubsystem, liftBoxSubsystem, flipperSubsystem);
+        register(intakeSubsystem, liftBoxSubsystem, flipperSubsystem, turretShooterSubsystem);
 
         // ────────────────────────────────────────────────────────────────────
         // 4. Wrap gamepad
@@ -124,6 +131,14 @@ public class MainTeleOp extends CommandOpMode {
         // ── Intake OUT — Left Bumper ──────────────────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.LEFT_BUMPER)
                 .whileHeld(new IntakeOutCommand(intakeSubsystem));
+
+        // ── Turret Shooter START — Right Trigger (analog > 0.05) ──────────
+        new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05)
+                .whenActive(new ShootStartCommand(turretShooterSubsystem));
+
+        // ── Turret Shooter STOP — Right Bumper ────────────────────────────
+        new GamepadButton(driverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
+                .whenPressed(new ShootStopCommand(turretShooterSubsystem));
 
         // ── Lift + Dump sequence — D-pad Up ───────────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_UP)

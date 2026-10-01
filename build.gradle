@@ -23,6 +23,9 @@ allprojects {
     repositories {
         mavenCentral()
         google()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://maven.pedropathing.com' }
+        maven { url 'https://maven.brott.dev/' }
     }
 }
 
