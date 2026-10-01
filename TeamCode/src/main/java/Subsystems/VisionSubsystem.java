@@ -2,7 +2,7 @@ package Subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.Limelight3G;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -21,7 +21,7 @@ import java.util.List;
  */
 public class VisionSubsystem extends SubsystemBase {
 
-    private final Limelight3G limelight;
+    private final Limelight3A limelight;
     private final Telemetry telemetry;
     private final TurretSubsystem turretSubsystem;
     private final DriveSubsystem driveSubsystem;
@@ -51,7 +51,7 @@ public class VisionSubsystem extends SubsystemBase {
         this.turretSubsystem = turretSubsystem;
         this.driveSubsystem = driveSubsystem;
 
-        limelight = hardwareMap.get(Limelight3G.class, "limelight");
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
     }

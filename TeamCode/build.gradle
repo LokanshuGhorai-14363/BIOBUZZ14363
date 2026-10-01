@@ -19,6 +19,8 @@ apply from: '../build.dependencies.gradle'
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.pedropathing.com' }
+    maven { url 'https://maven.brott.dev/' }
 }
 
 android {
@@ -32,4 +34,5 @@ android {
 dependencies {
     implementation project(':FtcRobotController')
     implementation 'org.ftclib.ftclib:core:2.1.1'
+    implementation 'com.pedropathing:pedro:1.0.1'
 }

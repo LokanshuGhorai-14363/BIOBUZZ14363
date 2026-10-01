@@ -43,7 +43,7 @@ public class FConstants {
 
         // ── Translational PID ─────────────────────────────────────────────
         // Controls robot position on the field (X/Y)
-        FollowerConstants.translationalPIDFCoefficients.setCoefficients(
+        FollowerConstants.translationalPIDFCoefficients = new com.pedropathing.util.CustomPIDFCoefficients(
                 0.1,   // P
                 0.0,   // I
                 0.01,  // D
@@ -52,7 +52,7 @@ public class FConstants {
 
         // ── Heading PID ───────────────────────────────────────────────────
         // Controls robot heading (rotation)
-        FollowerConstants.headingPIDFCoefficients.setCoefficients(
+        FollowerConstants.headingPIDFCoefficients = new com.pedropathing.util.CustomPIDFCoefficients(
                 2.0,   // P
                 0.0,   // I
                 0.1,   // D
@@ -61,11 +61,12 @@ public class FConstants {
 
         // ── Drive PID ─────────────────────────────────────────────────────
         // Controls forward/backward drive power during path following
-        FollowerConstants.drivePIDFCoefficients.setCoefficients(
+        FollowerConstants.drivePIDFCoefficients = new com.pedropathing.util.CustomFilteredPIDFCoefficients(
                 0.02,  // P
                 0.0,   // I
                 0.0005,// D
-                0.6    // F (feedforward — fraction of max velocity)
+                0.6,   // T (filter coefficient)
+                0.0    // F (feedforward)
         );
 
         // ── Path following parameters ─────────────────────────────────────
