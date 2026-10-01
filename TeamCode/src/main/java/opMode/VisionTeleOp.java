@@ -62,10 +62,10 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 () -> driverGamepad.getRightX()
         ));
 
-        // 4. Default Turret Command (Auto-tracking Limelight target)
+        // 4. Default Turret Command (Auto-tracking Goal using Pinpoint Odometry)
         turretSubsystem.setDefaultCommand(new RunCommand(
                 () -> {
-                    double targetAngle = visionSubsystem.calculateRequiredTurretAngle();
+                    double targetAngle = visionSubsystem.calculateOdometryTurretAngle();
                     turretSubsystem.setAngle(targetAngle);
                 },
                 turretSubsystem

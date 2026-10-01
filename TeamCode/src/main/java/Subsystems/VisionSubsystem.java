@@ -13,10 +13,15 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * VisionSubsystem — Limelight 3G integration for dynamic turret tracking and relocalization.
+ * VisionSubsystem — Limelight 3A integration & Pinpoint Odometry aiming for dynamic turret tracking.
  *
  * The Limelight is mounted on a rotating turret, 84.125 mm to the LEFT of the center,
  * with a 21-degree upward pitch.
+ *
+ * Field Specifications:
+ * - Field Size: 144in x 144in (Origin (0,0) at bottom-left)
+ * - Red Alliance Goals:  (60in, 60in) and (60in, 84in)
+ * - Blue Alliance Goals: (84in, 60in) and (84in, 84in)
  */
 public class VisionSubsystem extends SubsystemBase {
 
@@ -33,10 +38,21 @@ public class VisionSubsystem extends SubsystemBase {
     // Pitch angle of the Limelight (in degrees)
     public static final double PITCH_ANGLE_DEG = 21.0;
 
-    // Field Y-coordinate threshold for top/bottom half (in inches, assuming 0-144 field, middle is 72)
+    // Field & Goal Coordinates (in inches)
+    public static final double FIELD_SIZE_INCHES = 144.0;
     public static final double FIELD_MID_Y_INCHES = 72.0;
 
-    // Target Tag IDs
+    // Red Alliance Goals: (60in, 60in) and (60in, 84in)
+    public static final double RED_GOAL_X = 60.0;
+    public static final double RED_GOAL_Y1 = 60.0;
+    public static final double RED_GOAL_Y2 = 84.0;
+
+    // Blue Alliance Goals: (84in, 60in) and (84in, 84in)
+    public static final double BLUE_GOAL_X = 84.0;
+    public static final double BLUE_GOAL_Y1 = 60.0;
+    public static final double BLUE_GOAL_Y2 = 84.0;
+
+    // Target Tag IDs for Limelight fallback
     private final List<Integer> RED_SCORING_TAGS = Arrays.asList(30, 31, 32, 33);
     private final List<Integer> RED_AUDIENCE_TAGS = Arrays.asList(34, 35, 36, 37);
     private final List<Integer> BLUE_SCORING_TAGS = Arrays.asList(42, 43, 44, 45);
@@ -59,6 +75,10 @@ public class VisionSubsystem extends SubsystemBase {
         this.currentAlliance = alliance;
     }
 
+    public Alliance getAlliance() {
+        return currentAlliance;
+    }
+
     @Override
     public void periodic() {
         lastResult = limelight.getLatestResult();
@@ -69,6 +89,74 @@ public class VisionSubsystem extends SubsystemBase {
         } else {
             telemetry.addData("LL Targets", "None");
         }
+
+        // Output Odometry Aiming Info to Telemetry
+        Pose robotPose = driveSubsystem.getPose();
+        double[] targetGoal = getTargetGoalCoordinates();
+        double distance = Math.hypot(targetGoal[0] - robotPose.getX(), targetGoal[1] - robotPose.getY());
+        double turretAngle = calculateOdometryTurretAngle();
+
+        telemetry.addData("Alliance", currentAlliance);
+        telemetry.addData("Target Goal", "(%.1fin, %.1fin)", targetGoal[0], targetGoal[1]);
+        telemetry.addData("Goal Distance", "%.2fin", distance);
+        telemetry.addData("Target Turret Angle", "%.2f°", turretAngle);
+    }
+
+    /**
+     * Determines the active target goal coordinates (X, Y in inches) based on alliance
+     * and the robot's current Y position.
+     *
+     * @return double array {goalX, goalY}
+     */
+    public double[] getTargetGoalCoordinates() {
+        Pose robotPose = driveSubsystem.getPose();
+        double robotY = robotPose.getY();
+
+        double goalX;
+        double goalY;
+
+        if (currentAlliance == Alliance.RED) {
+            goalX = RED_GOAL_X;
+            goalY = (robotY > FIELD_MID_Y_INCHES) ? RED_GOAL_Y2 : RED_GOAL_Y1;
+        } else {
+            goalX = BLUE_GOAL_X;
+            goalY = (robotY > FIELD_MID_Y_INCHES) ? BLUE_GOAL_Y2 : BLUE_GOAL_Y1;
+        }
+
+        return new double[]{goalX, goalY};
+    }
+
+    /**
+     * Calculates the required turret angle to aim directly at the active goal using
+     * Pinpoint Odometry (Pedro Pathing robot pose).
+     *
+     * @return Required turret angle in degrees.
+     */
+    public double calculateOdometryTurretAngle() {
+        Pose robotPose = driveSubsystem.getPose();
+        double[] goalCoords = getTargetGoalCoordinates();
+
+        double dx = goalCoords[0] - robotPose.getX();
+        double dy = goalCoords[1] - robotPose.getY();
+
+        // Field heading angle towards the goal (in radians)
+        double globalGoalAngle = Math.atan2(dy, dx);
+
+        // Relative angle from robot's heading to goal
+        double relativeAngleRad = globalGoalAngle - robotPose.getHeading();
+
+        // Normalize to [-PI, PI]
+        while (relativeAngleRad > Math.PI) relativeAngleRad -= 2 * Math.PI;
+        while (relativeAngleRad < -Math.PI) relativeAngleRad += 2 * Math.PI;
+
+        double targetAngleDeg = Math.toDegrees(relativeAngleRad);
+
+        // If target angle is negative, convert to positive [0, 360] range
+        if (targetAngleDeg < 0) {
+            targetAngleDeg += 360.0;
+        }
+
+        return targetAngleDeg;
     }
 
     /**
@@ -98,24 +186,15 @@ public class VisionSubsystem extends SubsystemBase {
         Pose3D botpose3d = lastResult.getBotpose();
         if (botpose3d == null) return null;
 
-        // Botpose from Limelight (assuming LL is configured with 0,0,0 camera pose so it returns camera's field pose)
-        // Convert to inches (PedroPathing uses inches typically)
         double camX = botpose3d.getPosition().x * 39.3701;
         double camY = botpose3d.getPosition().y * 39.3701;
         double camHeading = botpose3d.getOrientation().getYaw(); 
 
-        // Turret angle relative to robot chassis
         double turretAngleRad = Math.toRadians(turretSubsystem.getCurrentAngle());
-        
-        // Robot Heading = Camera Heading - Turret Angle
         double robotHeading = camHeading - turretAngleRad;
 
-        // Offset in inches (84.125 mm to the left of turret center)
         double offsetInches = Y_OFFSET_MM / 25.4;
         
-        // Camera is 'offsetInches' to the left of the turret center (along the turret's local Y axis).
-        // Turret's global heading is 'camHeading'.
-        // So turret center is at:
         double robotX = camX - offsetInches * Math.sin(robotHeading + turretAngleRad);
         double robotY = camY + offsetInches * Math.cos(robotHeading + turretAngleRad);
         
@@ -130,34 +209,20 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public double calculateRequiredTurretAngle() {
         if (lastResult == null || !lastResult.isValid()) {
-            return turretSubsystem.getCurrentAngle();
+            return calculateOdometryTurretAngle();
         }
 
-        // Ideally, we'd filter for the prioritized tag ID here.
-        // For simplicity, we'll use the primary target's tx/ty.
-        double tx = lastResult.getTx(); // Horizontal angle offset
-        double ty = lastResult.getTy(); // Vertical angle offset
+        double tx = lastResult.getTx();
+        double ty = lastResult.getTy();
         
-        // Calculate horizontal distance to target (d).
-        // Assuming a known target height. We can also use camera pose in target space if available.
-        // Using basic trigonometry with the 21 degree pitch:
-        // d = (TargetHeight - CameraHeight) / tan(pitch + ty)
-        // However, a simpler way is to just use tx to adjust the turret, but we need to account for the Y offset.
-        
-        // If we only have tx, and we know the Y offset is 84.125mm:
-        // Assuming an average distance to the tag of 1000mm.
         double assumedDistanceMm = 1000.0; 
         
-        // Target's local coordinates relative to the camera
         double tagX_cam = assumedDistanceMm * Math.sin(Math.toRadians(tx));
         double tagY_cam = assumedDistanceMm * Math.cos(Math.toRadians(tx));
         
-        // Target's coordinates relative to the turret center
-        // Camera is at (0, 84.125) relative to turret
         double tagX_turret = tagX_cam;
         double tagY_turret = tagY_cam + Y_OFFSET_MM;
         
-        // Required angle adjustment
         double angleAdjustment = Math.toDegrees(Math.atan2(tagX_turret, tagY_turret));
         
         return turretSubsystem.getCurrentAngle() + angleAdjustment;
