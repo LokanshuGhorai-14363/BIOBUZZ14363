@@ -2,6 +2,7 @@ package pedroPathing.constants;
 
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.localization.Localizers;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 /**
  * FConstants — Pedro Pathing follower / drive configuration.
@@ -22,7 +23,7 @@ public class FConstants {
 
     static {
         // ── Localizer selection ───────────────────────────────────────────
-        FollowerConstants.localizers = Localizers.THREE_WHEEL;
+        FollowerConstants.localizers = Localizers.PINPOINT;
 
         // ── Drive motor configuration ─────────────────────────────────────
         // Hardware map names for the four mecanum drive motors
@@ -32,10 +33,10 @@ public class FConstants {
         FollowerConstants.rightRearMotorName  = "rightRear";
 
         // goBILDA 425 RPM motor direction — set true if motor is reversed
-        FollowerConstants.leftFrontMotorDirection  = com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
-        FollowerConstants.leftRearMotorDirection   = com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
-        FollowerConstants.rightFrontMotorDirection = com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.FORWARD;
-        FollowerConstants.rightRearMotorDirection  = com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.FORWARD;
+        FollowerConstants.leftFrontMotorDirection  = DcMotorSimple.Direction.REVERSE;
+        FollowerConstants.leftRearMotorDirection   = DcMotorSimple.Direction.REVERSE;
+        FollowerConstants.rightFrontMotorDirection = DcMotorSimple.Direction.FORWARD;
+        FollowerConstants.rightRearMotorDirection  = DcMotorSimple.Direction.FORWARD;
 
         // ── Mass of the robot (kg) ────────────────────────────────────────
         FollowerConstants.mass = 13.6;  // ~30 lbs — adjust to your robot

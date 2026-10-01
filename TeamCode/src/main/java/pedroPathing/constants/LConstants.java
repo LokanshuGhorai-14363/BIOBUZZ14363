@@ -1,40 +1,40 @@
 package pedroPathing.constants;
 
-import com.pedropathing.localization.Encoder;
-import com.pedropathing.localization.constants.ThreeWheelConstants;
+import com.pedropathing.localization.GoBildaPinpointDriver;
+import com.pedropathing.localization.constants.PinpointConstants;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 /**
- * LConstants — Pedro Pathing localizer configuration.
- *
- * Configure this file for your specific encoder setup (three dead-wheel
- * odometry).  The values below are placeholders for a typical goBILDA
- * encoder pod setup and MUST be tuned on-robot using the Pedro Pathing
- * tuning OpModes.
+ * LConstants — Pedro Pathing localizer configuration for GoBilda Pinpoint.
+ * Configure this file for your GoBilda Pinpoint Odometry Computer (IMU Sensor Fusion for 2 Wheel Odometry).
+ * The values below are starting-point estimates and MUST be tuned on-robot.
  */
 public class LConstants {
 
     static {
+        // ── Hardware map name of the Pinpoint device ──────────────────────
+        PinpointConstants.hardwareMapName = "pinpoint";
+
+        // ── Distance unit for offsets ─────────────────────────────────────
+        PinpointConstants.distanceUnit = DistanceUnit.MM;
+
+        // ── Pod offsets from center of rotation ───────────────────────────
+        // forwardY: Y pod offset (forward/backward distance from tracking center)
+        // strafeX: X pod offset (left/right distance from tracking center)
+        PinpointConstants.forwardY = -168.0;  // tune on-robot
+        PinpointConstants.strafeX  = -84.0;   // tune on-robot
+
         // ── Encoder directions ────────────────────────────────────────────
-        // Set these based on which direction each encoder reads positive
-        // when the robot moves forward / strafes right.
-        ThreeWheelConstants.forwardTicksToInches   = 0.00297;  // tune via ForwardPushTest
-        ThreeWheelConstants.strafeTicksToInches    = 0.00297;  // tune via StrafePushTest
-        ThreeWheelConstants.turnTicksToInches      = 0.00297;  // tune via TurnTest
+        PinpointConstants.forwardEncoderDirection = GoBildaPinpointDriver.EncoderDirection.FORWARD;
+        PinpointConstants.strafeEncoderDirection  = GoBildaPinpointDriver.EncoderDirection.FORWARD;
 
-        // ── Encoder hardware names ────────────────────────────────────────
-        ThreeWheelConstants.leftEncoder            = "leftFront";
-        ThreeWheelConstants.rightEncoder           = "rightFront";
-        ThreeWheelConstants.strafeEncoder          = "leftRear";
+        // ── Odometry pod resolution ───────────────────────────────────────
+        PinpointConstants.useCustomEncoderResolution = false;
+        PinpointConstants.encoderResolution = GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD;
+        PinpointConstants.customEncoderResolution = 13.26291192;
 
-        // ── Encoder directions (FORWARD / REVERSED) ──────────────────────
-        ThreeWheelConstants.leftEncoderDirection    = Encoder.FORWARD;
-        ThreeWheelConstants.rightEncoderDirection   = Encoder.REVERSE;
-        ThreeWheelConstants.strafeEncoderDirection  = Encoder.FORWARD;
-
-        // ── Pod offsets from center of rotation (inches) ──────────────────
-        // Positive X = forward, Positive Y = left
-        ThreeWheelConstants.leftY                  =  6.5;   // tune on-robot
-        ThreeWheelConstants.rightY                 = -6.5;   // tune on-robot
-        ThreeWheelConstants.strafeX                = -5.0;   // tune on-robot
+        // ── Yaw scalar ────────────────────────────────────────────────────
+        PinpointConstants.useYawScalar = false;
+        PinpointConstants.yawScalar = 1.0;
     }
 }
