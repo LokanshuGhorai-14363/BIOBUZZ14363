@@ -3,26 +3,30 @@ package Subsystems;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import pedroPathing.constants.FConstants;
-import pedroPathing.constants.LConstants;
+import pedroPathing.constants.Constants;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.pathgen.BezierLine;
-import com.pedropathing.pathgen.Path;
-import com.pedropathing.pathgen.Point;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.Vector2D;
+import com.pedropathing.drivetrain.DrivePowers;
+import com.pedropathing.paths.Path;
+import com.pedropathing.paths.curves.bezier.BezierCurve;
+import com.pedropathing.paths.interpolator.Interpolator;
+import com.pedropathing.config.Modifier;
+import com.pedropathing.paths.PathSegment;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * DriveSubsystem — Mecanum drive powered by Pedro Pathing's Follower.
  *
- * In TeleOp the Follower handles all kinematic math (inverse kinematics,
- * heading correction, etc.).  We simply feed it translation/strafe/rotation
- * vectors every loop and call {@code update()}.
+ * In TeleOp the Follower/Drivetrain handles all kinematic math.
+ * We simply feed it translation/strafe/rotation vectors every loop and call {@code update()}.
  *
- * Motor configuration (goBILDA Yellow Jacket 425 RPM) is handled through
- * the Pedro Pathing constants files {@link FConstants} and {@link LConstants}.
+ * Motor configuration is handled through the Pedro Pathing constants file {@link Constants}.
  *
  * Also supports autonomous path-following for relocalization and pose
  * overrides from vision data.
@@ -45,10 +49,8 @@ public class DriveSubsystem extends SubsystemBase {
     public DriveSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
-        // Follower reads FConstants & LConstants automatically
-        follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
-        follower.setStartingPose(START_POSE);
-        follower.startTeleopDrive();
+        follower = Constants.create(hardwareMap);
+        follower.setPose(START_POSE);
     }
 
     // ───────────────────────────── TeleOp control ─────────────────────────────
@@ -58,36 +60,56 @@ public class DriveSubsystem extends SubsystemBase {
      *
      * @param forward  left-stick Y (negative = forward on most gamepads)
      * @param strafe   left-stick X
-     * @param rotation right-stick X (or left-stick X for single-stick mode)
+     * @param rotation right-stick X
      */
     public void drive(double forward, double strafe, double rotation) {
-        follower.setTeleOpMovementVectors(forward, strafe, rotation, true);
+        follower.drivetrain.drive(new DrivePowers(forward, strafe, rotation), true);
     }
 
     /**
      * Stop all drivetrain motion.
      */
     public void stop() {
-        follower.setTeleOpMovementVectors(0, 0, 0, false);
+        follower.drivetrain.stop();
     }
 
     // ───────────────────────────── Path following ─────────────────────────────
 
     /**
      * Begin autonomously following a path to the given target pose.
-     * Builds a BezierLine from the current pose to the target.
+     * Builds a BezierCurve from the current pose to the target.
      *
      * @param target the destination pose (x, y, heading in radians)
      */
     public void followPathTo(Pose target) {
-        Pose current = follower.getPose();
-        Path path = new Path(new BezierLine(
-                new Point(current.getX(), current.getY(), Point.CARTESIAN),
-                new Point(target.getX(), target.getY(), Point.CARTESIAN)
-        ));
-        path.setLinearHeadingInterpolation(current.getHeading(), target.getHeading());
+        Pose current = follower.pose();
+        Path path = new Path(new BezierCurve(
+                Vector2D.cartesian(current.x(), current.y()),
+                Vector2D.cartesian(target.x(), target.y())
+        ), new ArrayList<>()) {
+            @Override
+            public double heading(double v) {
+                return target.heading();
+            }
+            @Override
+            protected boolean hasHeading() {
+                return true;
+            }
+            @Override
+            protected List<PathSegment> getSegments(PathSegment.HeadingProvider headingProvider, List<Modifier> list) {
+                return new ArrayList<>();
+            }
+            @Override
+            protected Path withHeading(Interpolator interpolator) {
+                return this;
+            }
+            @Override
+            protected Path withModifiers(List<Modifier> list) {
+                return this;
+            }
+        }.heading(Interpolator.linear(current.heading(), target.heading()));
 
-        follower.followPath(path, true);
+        follower.follow(path);
         isFollowingPath = true;
     }
 
@@ -114,9 +136,8 @@ public class DriveSubsystem extends SubsystemBase {
      * Abort any active path follow and resume TeleOp control.
      */
     public void cancelPath() {
-        follower.breakFollowing();
+        follower.stop();
         isFollowingPath = false;
-        follower.startTeleopDrive();
     }
 
     /**
@@ -124,7 +145,7 @@ public class DriveSubsystem extends SubsystemBase {
      */
     public void resumeTeleOp() {
         isFollowingPath = false;
-        follower.startTeleopDrive();
+        follower.stop();
     }
 
     // ───────────────────────────── Pose management ────────────────────────────
@@ -142,7 +163,7 @@ public class DriveSubsystem extends SubsystemBase {
      * @return the current estimated robot pose from odometry.
      */
     public Pose getPose() {
-        return follower.getPose();
+        return follower.pose();
     }
 
     // ───────────────────────────── Lifecycle ───────────────────────────────────
@@ -155,10 +176,10 @@ public class DriveSubsystem extends SubsystemBase {
     public void periodic() {
         follower.update();
 
-        Pose pose = follower.getPose();
-        telemetry.addData("Drive X", pose.getX());
-        telemetry.addData("Drive Y", pose.getY());
-        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.getHeading()));
+        Pose pose = follower.pose();
+        telemetry.addData("Drive X", pose.x());
+        telemetry.addData("Drive Y", pose.y());
+        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.heading()));
         telemetry.addData("Path Following", isFollowingPath);
     }
 

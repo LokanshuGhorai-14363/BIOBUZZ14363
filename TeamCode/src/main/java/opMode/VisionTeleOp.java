@@ -87,6 +87,8 @@ public abstract class VisionTeleOp extends CommandOpMode {
             hub.clearBulkCache();
         }
 
+        //FTC lib crashes when clock speed over 1.5 ghz
+        //tim.sleep(3000) (3sec)
         // Run the FTCLib CommandScheduler
         super.run();
 

@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
-import com.pedropathing.localization.Pose;
+import com.pedropathing.math.Pose;
 import java.util.Arrays;
 import java.util.List;
 
@@ -77,7 +77,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public List<Integer> getPrioritizedTags() {
         Pose robotPose = driveSubsystem.getPose();
-        boolean isTopHalf = robotPose.getY() > FIELD_MID_Y_INCHES;
+        boolean isTopHalf = robotPose.y() > FIELD_MID_Y_INCHES;
 
         if (currentAlliance == Alliance.RED) {
             return isTopHalf ? RED_SCORING_TAGS : RED_AUDIENCE_TAGS;
