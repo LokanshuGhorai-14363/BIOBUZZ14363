@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
-import com.pedropathing.localization.Pose;
+import com.pedropathing.math.Pose;
 import java.util.Arrays;
 import java.util.List;
 
@@ -93,7 +93,7 @@ public class VisionSubsystem extends SubsystemBase {
         // Output Odometry Aiming Info to Telemetry
         Pose robotPose = driveSubsystem.getPose();
         double[] targetGoal = getTargetGoalCoordinates();
-        double distance = Math.hypot(targetGoal[0] - robotPose.getX(), targetGoal[1] - robotPose.getY());
+        double distance = Math.hypot(targetGoal[0] - robotPose.x(), targetGoal[1] - robotPose.y());
         double turretAngle = calculateOdometryTurretAngle();
 
         telemetry.addData("Alliance", currentAlliance);
@@ -110,7 +110,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public double[] getTargetGoalCoordinates() {
         Pose robotPose = driveSubsystem.getPose();
-        double robotY = robotPose.getY();
+        double robotY = robotPose.y();
 
         double goalX;
         double goalY;
@@ -136,14 +136,14 @@ public class VisionSubsystem extends SubsystemBase {
         Pose robotPose = driveSubsystem.getPose();
         double[] goalCoords = getTargetGoalCoordinates();
 
-        double dx = goalCoords[0] - robotPose.getX();
-        double dy = goalCoords[1] - robotPose.getY();
+        double dx = goalCoords[0] - robotPose.x();
+        double dy = goalCoords[1] - robotPose.y();
 
         // Field heading angle towards the goal (in radians)
         double globalGoalAngle = Math.atan2(dy, dx);
 
         // Relative angle from robot's heading to goal
-        double relativeAngleRad = globalGoalAngle - robotPose.getHeading();
+        double relativeAngleRad = globalGoalAngle - robotPose.heading();
 
         // Normalize to [-PI, PI]
         while (relativeAngleRad > Math.PI) relativeAngleRad -= 2 * Math.PI;
@@ -165,7 +165,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public List<Integer> getPrioritizedTags() {
         Pose robotPose = driveSubsystem.getPose();
-        boolean isTopHalf = robotPose.getY() > FIELD_MID_Y_INCHES;
+        boolean isTopHalf = robotPose.y() > FIELD_MID_Y_INCHES;
 
         if (currentAlliance == Alliance.RED) {
             return isTopHalf ? RED_SCORING_TAGS : RED_AUDIENCE_TAGS;

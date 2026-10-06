@@ -25,6 +25,7 @@ allprojects {
         google()
         maven { url 'https://jitpack.io' }
         maven { url 'https://maven.pedropathing.com' }
+        maven { url 'https://repo.dairy.foundation/releases/' }
         maven { url 'https://maven.brott.dev/' }
     }
 }
