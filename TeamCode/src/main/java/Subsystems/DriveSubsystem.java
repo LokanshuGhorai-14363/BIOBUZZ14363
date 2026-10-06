@@ -3,13 +3,12 @@ package Subsystems;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import pedroPathing.constants.FConstants;
-import pedroPathing.constants.LConstants;
+import pedroPathing.constants.Constants;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.math.Pose;
 
 /**
  * DriveSubsystem — Mecanum drive powered by Pedro Pathing's Follower.
@@ -18,8 +17,7 @@ import com.pedropathing.localization.Pose;
  * heading correction, etc.).  We simply feed it translation/strafe/rotation
  * vectors every loop and call {@code update()}.
  *
- * Motor configuration (goBILDA Yellow Jacket 425 RPM) is handled through
- * the Pedro Pathing constants files {@link FConstants} and {@link LConstants}.
+ * Configuration is handled through {@link Constants}.
  */
 public class DriveSubsystem extends SubsystemBase {
 
@@ -36,10 +34,9 @@ public class DriveSubsystem extends SubsystemBase {
     public DriveSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
-        // Follower reads FConstants & LConstants automatically
-        follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
-        follower.setStartingPose(START_POSE);
-        follower.startTeleopDrive();
+        // Initialize Follower using unified Constants factory method
+        follower = Constants.create(hardwareMap);
+        follower.setPose(START_POSE);
     }
 
     // ───────────────────────────── TeleOp control ─────────────────────────────
@@ -52,14 +49,14 @@ public class DriveSubsystem extends SubsystemBase {
      * @param rotation right-stick X (or left-stick X for single-stick mode)
      */
     public void drive(double forward, double strafe, double rotation) {
-        follower.setTeleOpMovementVectors(forward, strafe, rotation, true);
+        follower.manual(forward, strafe, rotation);
     }
 
     /**
      * Stop all drivetrain motion.
      */
     public void stop() {
-        follower.setTeleOpMovementVectors(0, 0, 0, false);
+        follower.stop();
     }
 
     // ───────────────────────────── Lifecycle ───────────────────────────────────
@@ -72,10 +69,10 @@ public class DriveSubsystem extends SubsystemBase {
     public void periodic() {
         follower.update();
 
-        Pose pose = follower.getPose();
-        telemetry.addData("Drive X", pose.getX());
-        telemetry.addData("Drive Y", pose.getY());
-        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.getHeading()));
+        Pose pose = follower.pose();
+        telemetry.addData("Drive X", pose.x());
+        telemetry.addData("Drive Y", pose.y());
+        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.heading()));
     }
 
     /**
