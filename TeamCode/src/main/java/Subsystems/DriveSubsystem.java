@@ -34,6 +34,7 @@ public class DriveSubsystem extends SubsystemBase {
     private boolean isFollowingPath = false;
 
     // Starting pose — (0, 0, 0) by default; override in autonomous
+    // starting POS is (72,72) - TODO need ot update
     private static final Pose START_POSE = new Pose(0, 0, 0);
 
     /**
@@ -45,6 +46,8 @@ public class DriveSubsystem extends SubsystemBase {
 
         follower = Constants.create(hardwareMap);
         follower.setPose(START_POSE);
+        //TODO COULD do mecanum math with the FTC lib
+        //TODO could use my own vectors for better efficiency
     }
 
     // ───────────────────────────── TeleOp control ─────────────────────────────
