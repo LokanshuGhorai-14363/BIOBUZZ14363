@@ -11,11 +11,11 @@ import java.util.function.DoubleSupplier;
  *
  * <h3>Behavior</h3>
  * <ul>
- *   <li><b>Ejecting:</b> If an illegal ball (e.g. BLUE) is detected by any sensor,
+ *   <li><b>Ejecting:</b> If an illegal color mix (Red + Blue simultaneously) is detected,
  *       it enters an automated purge sequence running intake and transfer motors in reverse
  *       at full power until all 4 sensors report NONE.</li>
- *   <li><b>Full Capacity:</b> If all 4 sensors detect balls, the motors automatically stop
- *       to prevent jams/overfilling.</li>
+ *   <li><b>Full Capacity:</b> If all 4 sensors detect balls (and no illegal mix), the motors
+ *       automatically stop to prevent jams/overfilling.</li>
  *   <li><b>Normal Intaking:</b> Runs intake and transfer motors inward proportional
  *       to the analog trigger input.</li>
  * </ul>
@@ -45,20 +45,20 @@ public class IntakeInCommand extends CommandBase {
 
     @Override
     public void execute() {
-        // 1. Check if an illegal ball is detected or if purge state is active
-        if (!isEjecting && intakeSubsystem.shouldEject()) {
+        // 1. Check if an illegal color mix (Red + Blue) is detected to trigger purge state
+        if (!isEjecting && intakeSubsystem.hasIllegalColorMix()) {
             isEjecting = true;
         }
 
         if (isEjecting) {
-            // Eject state: run motors in REVERSE at full power until all sensors are empty
+            // Eject state: run motors in REVERSE at full power until all 4 sensors report NONE
             intakeSubsystem.spinOutFull();
             if (intakeSubsystem.areAllSensorsEmpty()) {
                 isEjecting = false;
                 intakeSubsystem.stop();
             }
         } else if (intakeSubsystem.isFull()) {
-            // Capacity limit reached: stop motors to prevent jamming
+            // Capacity limit reached (4 balls, valid mix): stop motors to prevent jamming
             intakeSubsystem.stop();
         } else {
             // Normal operation: spin intake + transfer motors inward

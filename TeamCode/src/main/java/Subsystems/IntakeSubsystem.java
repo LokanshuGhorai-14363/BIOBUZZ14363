@@ -27,6 +27,12 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  *   <li>Nectar Red: #ED1C24</li>
  *   <li>Nectar Blue: #0066B3</li>
  * </ul>
+ *
+ * <h3>Mixing Rules</h3>
+ * <ul>
+ *   <li>Allowed: (Yellow + Red), (Yellow + Blue), or Pure Yellow (up to 4 balls max).</li>
+ *   <li>Illegal: Red and Blue simultaneously (Zero-tolerance). Triggers full reverse ejection.</li>
+ * </ul>
  */
 public class IntakeSubsystem extends SubsystemBase {
 
@@ -54,9 +60,6 @@ public class IntakeSubsystem extends SubsystemBase {
     public static float MIN_ALPHA_THRESHOLD       = 0.015f;
     public static float MIN_TOTAL_LIGHT_THRESHOLD = 0.03f;
     public static float MIN_SATURATION            = 0.25f;
-
-    /** Illegal ball color that triggers auto-eject sequence. */
-    public static BallColor ILLEGAL_COLOR         = BallColor.BLUE;
 
     /**
      * @param hardwareMap the robot's HardwareMap
@@ -203,6 +206,49 @@ public class IntakeSubsystem extends SubsystemBase {
     }
 
     /**
+     * @return {@code true} if any sensor detects a RED ball.
+     */
+    public boolean hasRed() {
+        for (int i = 0; i < 4; i++) {
+            if (getSensorColor(i) == BallColor.RED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return {@code true} if any sensor detects a BLUE ball.
+     */
+    public boolean hasBlue() {
+        for (int i = 0; i < 4; i++) {
+            if (getSensorColor(i) == BallColor.BLUE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return {@code true} if any sensor detects a YELLOW ball.
+     */
+    public boolean hasYellow() {
+        for (int i = 0; i < 4; i++) {
+            if (getSensorColor(i) == BallColor.YELLOW) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return {@code true} if both RED and BLUE balls are detected simultaneously.
+     */
+    public boolean hasIllegalColorMix() {
+        return hasRed() && hasBlue();
+    }
+
+    /**
      * @return {@code true} if ALL 4 sensors detect a ball (capacity limit reached).
      */
     public boolean isFull() {
@@ -227,17 +273,12 @@ public class IntakeSubsystem extends SubsystemBase {
     }
 
     /**
-     * Checks if any sensor detects the illegal ball color (default: BLUE).
+     * Checks if an ejection/purge sequence should be triggered (illegal Red + Blue mix).
      *
-     * @return {@code true} if an ejection/purge sequence should be triggered.
+     * @return {@code true} if Red and Blue are both present in the mechanism.
      */
     public boolean shouldEject() {
-        for (int i = 0; i < 4; i++) {
-            if (getSensorColor(i) == ILLEGAL_COLOR) {
-                return true;
-            }
-        }
-        return false;
+        return hasIllegalColorMix();
     }
 
     // ───────────────────────────── Accessors ───────────────────────────────────
@@ -269,6 +310,9 @@ public class IntakeSubsystem extends SubsystemBase {
                 telemetry.addData("Sensor " + (i + 1), getSensorColor(i));
             }
             telemetry.addData("Transfer Full", isFull());
+            telemetry.addData("Has Red", hasRed());
+            telemetry.addData("Has Blue", hasBlue());
+            telemetry.addData("Illegal Mix (R+B)", hasIllegalColorMix());
             telemetry.addData("Eject Active", shouldEject());
         }
     }
