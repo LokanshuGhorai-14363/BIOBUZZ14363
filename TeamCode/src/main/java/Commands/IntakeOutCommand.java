@@ -5,19 +5,19 @@ import com.arcrobotics.ftclib.command.CommandBase;
 import Subsystems.IntakeSubsystem;
 
 /**
- * IntakeOutCommand — spins the intake motor in reverse (eject cargo).
+ * IntakeOutCommand — spins both the intake motor and transfer motor in reverse (eject cargo).
  *
  * Bound to Gamepad 1 Left Bumper (button).
  *
- * Uses a fixed reverse power defined in the subsystem.
- * Automatically stops when the bumper is released.
+ * Uses a fixed reverse power defined in the subsystem for both motors.
+ * Automatically stops both motors when the bumper is released.
  */
 public class IntakeOutCommand extends CommandBase {
 
     private final IntakeSubsystem intakeSubsystem;
 
     /**
-     * @param intakeSubsystem the intake subsystem
+     * @param intakeSubsystem the intake subsystem controlling intake + transfer motors
      */
     public IntakeOutCommand(IntakeSubsystem intakeSubsystem) {
         this.intakeSubsystem = intakeSubsystem;
@@ -34,7 +34,7 @@ public class IntakeOutCommand extends CommandBase {
         intakeSubsystem.stop();
     }
 
-    /** Runs as long as the bumper is held (whileTrue binding). */
+    /** Runs as long as the bumper is held (whileHeld binding). */
     @Override
     public boolean isFinished() {
         return false;

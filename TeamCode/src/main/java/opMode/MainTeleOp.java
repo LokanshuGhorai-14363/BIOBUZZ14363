@@ -1,7 +1,6 @@
 package opMode;
 
 import com.arcrobotics.ftclib.command.CommandOpMode;
-import com.arcrobotics.ftclib.command.InstantCommand;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
@@ -14,14 +13,12 @@ import java.util.List;
 import Commands.DefaultDriveCommand;
 import Commands.IntakeInCommand;
 import Commands.IntakeOutCommand;
-import Commands.LiftDumpSequence;
 import Commands.ShootStartCommand;
 import Commands.ShootStopCommand;
 
 import Subsystems.DriveSubsystem;
 import Subsystems.FlipperSubsystem;
 import Subsystems.IntakeSubsystem;
-import Subsystems.LiftBoxSubsystem;
 import Subsystems.TurretShooterSubsystem;
 
 /**
@@ -33,11 +30,10 @@ import Subsystems.TurretShooterSubsystem;
  *   <tr><td>Left Stick Y</td><td>Drive forward / backward</td></tr>
  *   <tr><td>Left Stick X</td><td>Strafe left / right</td></tr>
  *   <tr><td>Right Stick X</td><td>Rotate</td></tr>
- *   <tr><td>Left Trigger (analog)</td><td>Intake IN (proportional)</td></tr>
- *   <tr><td>Left Bumper</td><td>Intake OUT (reverse)</td></tr>
+ *   <tr><td>Left Trigger (analog)</td><td>Intake IN + Transfer (proportional)</td></tr>
+ *   <tr><td>Left Bumper</td><td>Intake OUT + Transfer (reverse)</td></tr>
  *   <tr><td>Right Trigger (analog)</td><td>Turret Shooter START (PID control)</td></tr>
  *   <tr><td>Right Bumper</td><td>Turret Shooter STOP</td></tr>
- *   <tr><td>D-pad Up</td><td>Lift → Dump → Retract sequence</td></tr>
  * </table>
  *
  * <h3>Autonomous Background Logic</h3>
@@ -56,7 +52,6 @@ public class MainTeleOp extends CommandOpMode {
     // ── Subsystems ────────────────────────────────────────────────────────────
     private DriveSubsystem        driveSubsystem;
     private IntakeSubsystem       intakeSubsystem;
-    private LiftBoxSubsystem      liftBoxSubsystem;
     private FlipperSubsystem      flipperSubsystem;
     private TurretShooterSubsystem turretShooterSubsystem;
 
@@ -81,7 +76,6 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         driveSubsystem        = new DriveSubsystem(hardwareMap, telemetry);
         intakeSubsystem       = new IntakeSubsystem(hardwareMap, telemetry);
-        liftBoxSubsystem      = new LiftBoxSubsystem(hardwareMap, telemetry);
         flipperSubsystem      = new FlipperSubsystem(hardwareMap, telemetry);
         turretShooterSubsystem = new TurretShooterSubsystem(hardwareMap, telemetry);
 
@@ -89,7 +83,7 @@ public class MainTeleOp extends CommandOpMode {
         // 3. Register subsystems with the scheduler
         //    (DriveSubsystem is registered implicitly via setDefaultCommand)
         // ────────────────────────────────────────────────────────────────────
-        register(intakeSubsystem, liftBoxSubsystem, flipperSubsystem, turretShooterSubsystem);
+        register(intakeSubsystem, flipperSubsystem, turretShooterSubsystem);
 
         // ────────────────────────────────────────────────────────────────────
         // 4. Wrap gamepad
@@ -119,7 +113,7 @@ public class MainTeleOp extends CommandOpMode {
      * Map all gamepad inputs to their respective commands.
      */
     private void configureBindings() {
-        // ── Intake IN — Left Trigger (analog, > 0.05 deadzone) ────────────
+        // ── Intake IN + Transfer — Left Trigger (analog, > 0.05 deadzone) ──
         new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) > 0.05)
                 .whileActiveContinuous(
                         new IntakeInCommand(
@@ -128,7 +122,7 @@ public class MainTeleOp extends CommandOpMode {
                         )
                 );
 
-        // ── Intake OUT — Left Bumper ──────────────────────────────────────
+        // ── Intake OUT + Transfer — Left Bumper ───────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.LEFT_BUMPER)
                 .whileHeld(new IntakeOutCommand(intakeSubsystem));
 
@@ -139,20 +133,10 @@ public class MainTeleOp extends CommandOpMode {
         // ── Turret Shooter STOP — Right Bumper ────────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
                 .whenPressed(new ShootStopCommand(turretShooterSubsystem));
-
-        // ── Lift + Dump sequence — D-pad Up ───────────────────────────────
-        new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_UP)
-                .whenPressed(new LiftDumpSequence(liftBoxSubsystem));
-
-        // ── Manual lift reset — D-pad Down (emergency return to default) ──
-        new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_DOWN)
-                .whenPressed(new InstantCommand(
-                        liftBoxSubsystem::resetToDefault, liftBoxSubsystem
-                ));
     }
 
     /**
-     * Called every loop iteration.  We clear the LynxModule bulk cache
+     * Called every loop iteration. We clear the LynxModule bulk cache
      * at the top of each loop so that all hardware reads in this cycle
      * use fresh data from a single bulk read.
      */
