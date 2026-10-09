@@ -2,7 +2,6 @@ package Commands;
 
 import com.arcrobotics.ftclib.command.CommandBase;
 import com.pedropathing.math.Pose;
-import com.pedropathing.math.PoseFactory;
 
 import Subsystems.DriveSubsystem;
 import Subsystems.VisionSubsystem;
@@ -18,9 +17,9 @@ public class RelocalizeCommand extends CommandBase {
     private final VisionSubsystem visionSubsystem;
     
     // Top Left (Red Alliance)
-    private static final Pose RED_TARGET_POSE = PoseFactory.radians().of(120, 120, Math.toRadians(180));
+    private static final Pose RED_TARGET_POSE = new Pose(120, 120, Math.toRadians(180));
     // Bottom Right (Blue Alliance)
-    private static final Pose BLUE_TARGET_POSE = PoseFactory.radians().of(24, 24, 0);
+    private static final Pose BLUE_TARGET_POSE = new Pose(24, 24, 0);
     
     private final Alliance currentAlliance;
 

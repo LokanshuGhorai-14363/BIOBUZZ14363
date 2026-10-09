@@ -9,7 +9,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import com.pedropathing.math.Pose;
-import com.pedropathing.math.PoseFactory;
 import java.util.Arrays;
 import java.util.List;
 
@@ -199,7 +198,7 @@ public class VisionSubsystem extends SubsystemBase {
         double robotX = camX - offsetInches * Math.sin(robotHeading + turretAngleRad);
         double robotY = camY + offsetInches * Math.cos(robotHeading + turretAngleRad);
         
-        return PoseFactory.radians().of(robotX, robotY, robotHeading);
+        return new Pose(robotX, robotY, robotHeading);
     }
 
     /**
