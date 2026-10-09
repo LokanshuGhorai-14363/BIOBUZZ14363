@@ -3,15 +3,15 @@ package Subsystems;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import pedroPathing.constants.FConstants;
-import pedroPathing.constants.LConstants;
+import pedroPathing.constants.Constants;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.PoseFactory;
 import com.pedropathing.pathgen.BezierLine;
-import com.pedropathing.pathgen.Path;
+import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.Point;
 
 /**
@@ -22,7 +22,7 @@ import com.pedropathing.pathgen.Point;
  * vectors every loop and call {@code update()}.
  *
  * Motor configuration (goBILDA Yellow Jacket 425 RPM) is handled through
- * the Pedro Pathing constants files {@link FConstants} and {@link LConstants}.
+ * the Pedro Pathing constants file {@link Constants}.
  *
  * Also supports autonomous path-following for relocalization and pose
  * overrides from vision data.
@@ -36,7 +36,7 @@ public class DriveSubsystem extends SubsystemBase {
     private boolean isFollowingPath = false;
 
     // Starting pose — (0, 0, 0) by default; override in autonomous
-    private static final Pose START_POSE = new Pose(0, 0, 0);
+    private static final Pose START_POSE = PoseFactory.degrees().of(0, 0, 0);
 
     /**
      * @param hardwareMap the robot's HardwareMap
@@ -45,8 +45,8 @@ public class DriveSubsystem extends SubsystemBase {
     public DriveSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
-        // Follower reads FConstants & LConstants automatically
-        follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
+        // Follower reads Constants automatically
+        follower = Constants.create(hardwareMap);
         follower.setStartingPose(START_POSE);
         follower.startTeleopDrive();
     }
@@ -81,12 +81,14 @@ public class DriveSubsystem extends SubsystemBase {
      */
     public void followPathTo(Pose target) {
         Pose current = follower.getPose();
-        Path path = new Path(new BezierLine(
-                new Point(current.getX(), current.getY(), Point.CARTESIAN),
-                new Point(target.getX(), target.getY(), Point.CARTESIAN)
-        ));
-        path.setLinearHeadingInterpolation(current.getHeading(), target.getHeading());
-
+        PathChain path = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Point(current.getX(), current.getY(), Point.CARTESIAN),
+                        new Point(target.getX(), target.getY(), Point.CARTESIAN)
+                ))
+                .setLinearHeadingInterpolation(current.getHeading(), target.getHeading())
+                .build();
+                
         follower.followPath(path, true);
         isFollowingPath = true;
     }
