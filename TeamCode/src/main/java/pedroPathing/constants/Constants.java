@@ -46,17 +46,6 @@ public class Constants {
 
     public static ForesightConfig foresightConfig = new ForesightConfig(
             c -> {
-                c.mass.set(13.6);
-                c.lateralPIDFCoefficients.set(0.1, 0.0, 0.01, 0.0);
-                c.headingPIDFCoefficients.set(2.0, 0.0, 0.1, 0.0);
-                c.axialPIDFCoefficients.set(0.02, 0.0, 0.0005, 0.6);
-                
-                c.zeroPowerAccelerationMultiplier.set(4.0);
-                c.centripetalScaling.set(0.0005);
-                
-                c.pathEndTimeoutConstraint.set(500.0);
-                c.pathEndTValueConstraint.set(0.995);
-                c.pathEndVelocityConstraint.set(0.1);
             }
     );
 

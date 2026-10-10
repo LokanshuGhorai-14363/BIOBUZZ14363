@@ -2,6 +2,10 @@ repositories {
     mavenCentral()
     google() // Needed for androidx
     maven { url 'https://repo.dairy.foundation/releases/' }
+    maven { url 'https://repo.dairy.foundation/snapshots/' }
+    maven { url 'https://pedropathing.com/maven' }
+    maven { url 'https://maven.pedropathing.com/' }
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -14,5 +18,30 @@ dependencies {
     implementation 'org.firstinspires.ftc:FtcCommon:12.0.0'
     implementation 'org.firstinspires.ftc:Vision:12.0.0'
     implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'com.pedropathing:core:3.0.1'
+    implementation 'com.pedropathing:revhub:3.0.1'
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

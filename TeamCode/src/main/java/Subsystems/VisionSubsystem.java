@@ -105,7 +105,7 @@ public class VisionSubsystem extends SubsystemBase {
             // Output Odometry Aiming Info to Telemetry
             Pose robotPose = driveSubsystem.getPose();
             updateTargetGoalCoordinates();
-            double distance = Math.hypot(activeTargetGoal[0] - robotPose.getX(), activeTargetGoal[1] - robotPose.getY());
+            double distance = Math.hypot(activeTargetGoal[0] - robotPose.x(), activeTargetGoal[1] - robotPose.y());
             double turretAngle = calculateOdometryTurretAngle();
 
             telemetry.addData("Alliance", currentAlliance);
@@ -122,7 +122,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public void updateTargetGoalCoordinates() {
         Pose robotPose = driveSubsystem.getPose();
-        double robotY = robotPose.getY();
+        double robotY = robotPose.y();
 
         if (currentAlliance == Alliance.RED) {
             activeTargetGoal[0] = RED_GOAL_X;
@@ -143,14 +143,14 @@ public class VisionSubsystem extends SubsystemBase {
         Pose robotPose = driveSubsystem.getPose();
         updateTargetGoalCoordinates();
 
-        double dx = activeTargetGoal[0] - robotPose.getX();
-        double dy = activeTargetGoal[1] - robotPose.getY();
+        double dx = activeTargetGoal[0] - robotPose.x();
+        double dy = activeTargetGoal[1] - robotPose.y();
 
         // Field heading angle towards the goal (in radians)
         double globalGoalAngle = Math.atan2(dy, dx);
 
         // Relative angle from robot's heading to goal
-        double relativeAngleRad = globalGoalAngle - robotPose.getHeading();
+        double relativeAngleRad = globalGoalAngle - robotPose.heading();
 
         // Normalize to [-PI, PI] efficiently
         relativeAngleRad = (relativeAngleRad + Math.PI) % (2 * Math.PI) - Math.PI;
@@ -170,7 +170,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public List<Integer> getPrioritizedTags() {
         Pose robotPose = driveSubsystem.getPose();
-        boolean isTopHalf = robotPose.getY() > FIELD_MID_Y_INCHES;
+        boolean isTopHalf = robotPose.y() > FIELD_MID_Y_INCHES;
 
         if (currentAlliance == Alliance.RED) {
             return isTopHalf ? RED_SCORING_TAGS : RED_AUDIENCE_TAGS;

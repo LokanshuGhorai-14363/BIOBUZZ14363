@@ -5,10 +5,16 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
-import com.pedropathing.pathgen.Path;
-import com.pedropathing.pathgen.BezierLine;
-import com.pedropathing.pathgen.Point;
+import com.pedropathing.paths.Path;
+import com.pedropathing.paths.PathSegment;
+import com.pedropathing.paths.curves.Line;
+import com.pedropathing.paths.interpolator.Interpolator;
+import com.pedropathing.drivetrain.DrivePowers;
+import com.pedropathing.config.Modifier;
 import pedroPathing.constants.Constants;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * DriveSubsystem — Mecanum drive powered by Pedro Pathing's Follower.
@@ -37,8 +43,7 @@ public class DriveSubsystem extends SubsystemBase {
 
         // Follower is created via our unified Constants class (Pedro Pathing 3.x)
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(START_POSE);
-        follower.startTeleopDrive();
+        follower.setPose(START_POSE);
     }
 
     // ───────────────────────────── TeleOp control ─────────────────────────────
@@ -51,14 +56,14 @@ public class DriveSubsystem extends SubsystemBase {
      * @param rotation right-stick X (or left-stick X for single-stick mode)
      */
     public void drive(double forward, double strafe, double rotation) {
-        follower.setTeleOpMovementVectors(forward, strafe, rotation, true);
+        follower.drivetrain.drive(new DrivePowers(forward, strafe, rotation), true);
     }
 
     /**
      * Stop all drivetrain motion.
      */
     public void stop() {
-        follower.setTeleOpMovementVectors(0, 0, 0, false);
+        follower.drivetrain.stop();
     }
 
     // ───────────────────────────── Lifecycle ───────────────────────────────────
@@ -71,10 +76,10 @@ public class DriveSubsystem extends SubsystemBase {
     public void periodic() {
         follower.update();
 
-        Pose pose = follower.getPose();
-        telemetry.addData("Drive X", pose.getX());
-        telemetry.addData("Drive Y", pose.getY());
-        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.getHeading()));
+        Pose pose = follower.pose();
+        telemetry.addData("Drive X", pose.x());
+        telemetry.addData("Drive Y", pose.y());
+        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.heading()));
     }
 
     /**
@@ -88,7 +93,7 @@ public class DriveSubsystem extends SubsystemBase {
      * Retrieves the current pose from the Follower.
      */
     public Pose getPose() {
-        return follower.getPose();
+        return follower.pose();
     }
 
     /**
@@ -102,12 +107,33 @@ public class DriveSubsystem extends SubsystemBase {
      * Autonomously follows a straight line path to the target pose.
      */
     public void followPathTo(Pose target) {
-        Path path = new Path(new BezierLine(
-            new Point(follower.getPose()),
-            new Point(target)
-        ));
-        path.setLinearHeadingInterpolation(follower.getPose().getHeading(), target.getHeading());
-        follower.followPath(path);
+        Path path = new Path(new Line(follower.pose(), target), new ArrayList<>()) {
+            @Override
+            public double heading(double v) {
+                return target.heading();
+            }
+
+            @Override
+            protected boolean hasHeading() {
+                return true;
+            }
+
+            @Override
+            protected List<PathSegment> getSegments(PathSegment.HeadingProvider headingProvider, List<Modifier> list) {
+                return new ArrayList<>();
+            }
+
+            @Override
+            protected Path withHeading(Interpolator interpolator) {
+                return this;
+            }
+
+            @Override
+            protected Path withModifiers(List<Modifier> list) {
+                return this;
+            }
+        }.heading(Interpolator.linear(follower.pose(), target));
+        follower.follow(path);
     }
 
     /**
@@ -121,6 +147,6 @@ public class DriveSubsystem extends SubsystemBase {
      * Resumes TeleOp control after an autonomous command finishes.
      */
     public void resumeTeleOp() {
-        follower.startTeleopDrive();
+        follower.drivetrain.stop();
     }
 }
