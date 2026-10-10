@@ -2,14 +2,13 @@ package Subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-
-import pedroPathing.constants.FConstants;
-import pedroPathing.constants.LConstants;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
+import com.pedropathing.math.Pose;
+import com.pedropathing.pathgen.Path;
+import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.Point;
+import pedroPathing.constants.Constants;
 
 /**
  * DriveSubsystem — Mecanum drive powered by Pedro Pathing's Follower.
@@ -19,7 +18,7 @@ import com.pedropathing.localization.Pose;
  * vectors every loop and call {@code update()}.
  *
  * Motor configuration (goBILDA Yellow Jacket 425 RPM) is handled through
- * the Pedro Pathing constants files {@link FConstants} and {@link LConstants}.
+ * the Pedro Pathing constants file {@link Constants}.
  */
 public class DriveSubsystem extends SubsystemBase {
 
@@ -36,8 +35,8 @@ public class DriveSubsystem extends SubsystemBase {
     public DriveSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
-        // Follower reads FConstants & LConstants automatically
-        follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
+        // Follower is created via our unified Constants class (Pedro Pathing 3.x)
+        follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(START_POSE);
         follower.startTeleopDrive();
     }
@@ -83,5 +82,45 @@ public class DriveSubsystem extends SubsystemBase {
      */
     public Follower getFollower() {
         return follower;
+    }
+
+    /**
+     * Retrieves the current pose from the Follower.
+     */
+    public Pose getPose() {
+        return follower.getPose();
+    }
+
+    /**
+     * Overwrites the robot's current pose (useful for vision relocalization).
+     */
+    public void setPose(Pose pose) {
+        follower.setPose(pose);
+    }
+
+    /**
+     * Autonomously follows a straight line path to the target pose.
+     */
+    public void followPathTo(Pose target) {
+        Path path = new Path(new BezierLine(
+            new Point(follower.getPose()),
+            new Point(target)
+        ));
+        path.setLinearHeadingInterpolation(follower.getPose().getHeading(), target.getHeading());
+        follower.followPath(path);
+    }
+
+    /**
+     * Checks if the Follower has completed the current path.
+     */
+    public boolean isPathComplete() {
+        return !follower.isBusy();
+    }
+
+    /**
+     * Resumes TeleOp control after an autonomous command finishes.
+     */
+    public void resumeTeleOp() {
+        follower.startTeleopDrive();
     }
 }

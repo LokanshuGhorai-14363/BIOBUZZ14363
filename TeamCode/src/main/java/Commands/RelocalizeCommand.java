@@ -38,13 +38,17 @@ public class RelocalizeCommand extends CommandBase {
         driveSubsystem.followPathTo(target);
     }
 
+    private long lastRelocalizeTime = 0;
+
     @Override
     public void execute() {
-        // Path following is handled in DriveSubsystem.periodic() via follower.update()
-        // If vision provides a valid corrected pose, we could inject it here to correct odometry mid-path.
-        Pose correctedPose = visionSubsystem.getCorrectedBotPose();
-        if (correctedPose != null) {
-            driveSubsystem.setPose(correctedPose);
+        // Limit relocalization to 10Hz to prevent excessive odometry jitter and reduce loop times
+        if (System.currentTimeMillis() - lastRelocalizeTime > 100) {
+            Pose correctedPose = visionSubsystem.getCorrectedBotPose();
+            if (correctedPose != null) {
+                driveSubsystem.setPose(correctedPose);
+                lastRelocalizeTime = System.currentTimeMillis();
+            }
         }
     }
 

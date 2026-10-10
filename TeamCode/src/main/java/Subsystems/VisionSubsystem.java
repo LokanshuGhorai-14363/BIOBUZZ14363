@@ -35,6 +35,8 @@ public class VisionSubsystem extends SubsystemBase {
 
     // Y-Offset of Limelight from turret center (in mm)
     public static final double Y_OFFSET_MM = 84.125;
+    public static final double Y_OFFSET_INCHES = Y_OFFSET_MM / 25.4; // Precalculated
+
     // Pitch angle of the Limelight (in degrees)
     public static final double PITCH_ANGLE_DEG = 21.0;
 
@@ -60,6 +62,12 @@ public class VisionSubsystem extends SubsystemBase {
 
     private LLResult lastResult;
 
+    // Pre-allocated array to prevent object creation in active loops
+    private final double[] activeTargetGoal = new double[2];
+
+    // Throttle telemetry updates to save loop time
+    private long lastTelemetryTime = 0;
+
     public VisionSubsystem(HardwareMap hardwareMap, Telemetry telemetry, 
                            TurretSubsystem turretSubsystem, DriveSubsystem driveSubsystem) {
         this.telemetry = telemetry;
@@ -83,47 +91,46 @@ public class VisionSubsystem extends SubsystemBase {
     public void periodic() {
         lastResult = limelight.getLatestResult();
         
-        if (lastResult != null && lastResult.isValid()) {
-            telemetry.addData("LL Targets", lastResult.getTa());
-            telemetry.addData("LL tx", lastResult.getTx());
-        } else {
-            telemetry.addData("LL Targets", "None");
+        // Only format/push telemetry every 100ms to prevent blocking the thread
+        if (System.currentTimeMillis() - lastTelemetryTime > 100) {
+            lastTelemetryTime = System.currentTimeMillis();
+
+            if (lastResult != null && lastResult.isValid()) {
+                telemetry.addData("LL Targets", lastResult.getTa());
+                telemetry.addData("LL tx", lastResult.getTx());
+            } else {
+                telemetry.addData("LL Targets", "None");
+            }
+
+            // Output Odometry Aiming Info to Telemetry
+            Pose robotPose = driveSubsystem.getPose();
+            updateTargetGoalCoordinates();
+            double distance = Math.hypot(activeTargetGoal[0] - robotPose.getX(), activeTargetGoal[1] - robotPose.getY());
+            double turretAngle = calculateOdometryTurretAngle();
+
+            telemetry.addData("Alliance", currentAlliance);
+            // Avoid String.format (%.1f) inside loop to reduce CPU overhead
+            telemetry.addData("Target Goal", "( " + activeTargetGoal[0] + "in, " + activeTargetGoal[1] + "in )");
+            telemetry.addData("Goal Distance", distance);
+            telemetry.addData("Target Turret Angle", turretAngle);
         }
-
-        // Output Odometry Aiming Info to Telemetry
-        Pose robotPose = driveSubsystem.getPose();
-        double[] targetGoal = getTargetGoalCoordinates();
-        double distance = Math.hypot(targetGoal[0] - robotPose.x(), targetGoal[1] - robotPose.y());
-        double turretAngle = calculateOdometryTurretAngle();
-
-        telemetry.addData("Alliance", currentAlliance);
-        telemetry.addData("Target Goal", "(%.1fin, %.1fin)", targetGoal[0], targetGoal[1]);
-        telemetry.addData("Goal Distance", "%.2fin", distance);
-        telemetry.addData("Target Turret Angle", "%.2f°", turretAngle);
     }
 
     /**
      * Determines the active target goal coordinates (X, Y in inches) based on alliance
-     * and the robot's current Y position.
-     *
-     * @return double array {goalX, goalY}
+     * and the robot's current Y position, caching it in activeTargetGoal.
      */
-    public double[] getTargetGoalCoordinates() {
+    public void updateTargetGoalCoordinates() {
         Pose robotPose = driveSubsystem.getPose();
-        double robotY = robotPose.y();
-
-        double goalX;
-        double goalY;
+        double robotY = robotPose.getY();
 
         if (currentAlliance == Alliance.RED) {
-            goalX = RED_GOAL_X;
-            goalY = (robotY > FIELD_MID_Y_INCHES) ? RED_GOAL_Y2 : RED_GOAL_Y1;
+            activeTargetGoal[0] = RED_GOAL_X;
+            activeTargetGoal[1] = (robotY > FIELD_MID_Y_INCHES) ? RED_GOAL_Y2 : RED_GOAL_Y1;
         } else {
-            goalX = BLUE_GOAL_X;
-            goalY = (robotY > FIELD_MID_Y_INCHES) ? BLUE_GOAL_Y2 : BLUE_GOAL_Y1;
+            activeTargetGoal[0] = BLUE_GOAL_X;
+            activeTargetGoal[1] = (robotY > FIELD_MID_Y_INCHES) ? BLUE_GOAL_Y2 : BLUE_GOAL_Y1;
         }
-
-        return new double[]{goalX, goalY};
     }
 
     /**
@@ -134,29 +141,27 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public double calculateOdometryTurretAngle() {
         Pose robotPose = driveSubsystem.getPose();
-        double[] goalCoords = getTargetGoalCoordinates();
+        updateTargetGoalCoordinates();
 
-        double dx = goalCoords[0] - robotPose.x();
-        double dy = goalCoords[1] - robotPose.y();
+        double dx = activeTargetGoal[0] - robotPose.getX();
+        double dy = activeTargetGoal[1] - robotPose.getY();
 
         // Field heading angle towards the goal (in radians)
         double globalGoalAngle = Math.atan2(dy, dx);
 
         // Relative angle from robot's heading to goal
-        double relativeAngleRad = globalGoalAngle - robotPose.heading();
+        double relativeAngleRad = globalGoalAngle - robotPose.getHeading();
 
-        // Normalize to [-PI, PI]
-        while (relativeAngleRad > Math.PI) relativeAngleRad -= 2 * Math.PI;
-        while (relativeAngleRad < -Math.PI) relativeAngleRad += 2 * Math.PI;
+        // Normalize to [-PI, PI] efficiently
+        relativeAngleRad = (relativeAngleRad + Math.PI) % (2 * Math.PI) - Math.PI;
+        if (relativeAngleRad < -Math.PI) {
+            relativeAngleRad += 2 * Math.PI;
+        }
 
         double targetAngleDeg = Math.toDegrees(relativeAngleRad);
 
         // If target angle is negative, convert to positive [0, 360] range
-        if (targetAngleDeg < 0) {
-            targetAngleDeg += 360.0;
-        }
-
-        return targetAngleDeg;
+        return (targetAngleDeg < 0) ? targetAngleDeg + 360.0 : targetAngleDeg;
     }
 
     /**
@@ -165,7 +170,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public List<Integer> getPrioritizedTags() {
         Pose robotPose = driveSubsystem.getPose();
-        boolean isTopHalf = robotPose.y() > FIELD_MID_Y_INCHES;
+        boolean isTopHalf = robotPose.getY() > FIELD_MID_Y_INCHES;
 
         if (currentAlliance == Alliance.RED) {
             return isTopHalf ? RED_SCORING_TAGS : RED_AUDIENCE_TAGS;
@@ -193,10 +198,11 @@ public class VisionSubsystem extends SubsystemBase {
         double turretAngleRad = Math.toRadians(turretSubsystem.getCurrentAngle());
         double robotHeading = camHeading - turretAngleRad;
 
-        double offsetInches = Y_OFFSET_MM / 25.4;
+        // Compute trig once to save loop time
+        double combinedHeading = robotHeading + turretAngleRad;
         
-        double robotX = camX - offsetInches * Math.sin(robotHeading + turretAngleRad);
-        double robotY = camY + offsetInches * Math.cos(robotHeading + turretAngleRad);
+        double robotX = camX - Y_OFFSET_INCHES * Math.sin(combinedHeading);
+        double robotY = camY + Y_OFFSET_INCHES * Math.cos(combinedHeading);
         
         return new Pose(robotX, robotY, robotHeading);
     }

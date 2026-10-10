@@ -2,7 +2,7 @@ package pedroPathing.constants;
 
 import com.pedropathing.algorithm.Foresight;
 import com.pedropathing.algorithm.ForesightConfig;
-import com.pedropathing.controllers.Controller;
+import com.pedropathing.follower.Follower;
 import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.PinpointConfig;
@@ -10,18 +10,10 @@ import com.pedropathing.revhub.localizers.PinpointLocalizer;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-/**
- *
- *
- */
 public class Constants {
 
-
-    /**
-     */
     public static MecanumConfig drivetrainConfig = new MecanumConfig(
             c -> {
                 c.frontLeftName.set("leftFront");
@@ -43,23 +35,35 @@ public class Constants {
                 c.name.set("pinpoint");
                 c.offsetUnits.set(DistanceUnit.MM);
                 c.yPodOffset.set(-168.0);
-
+                c.xPodOffset.set(-84.0);
+                
                 c.yPodDirection.set(GoBildaPinpointDriver.EncoderDirection.FORWARD);
-
+                c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.FORWARD);
+                
                 c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
             }
     );
 
     public static ForesightConfig foresightConfig = new ForesightConfig(
             c -> {
-
-
-
-
+                c.mass.set(13.6);
+                c.lateralPIDFCoefficients.set(0.1, 0.0, 0.01, 0.0);
+                c.headingPIDFCoefficients.set(2.0, 0.0, 0.1, 0.0);
+                c.axialPIDFCoefficients.set(0.02, 0.0, 0.0005, 0.6);
+                
+                c.zeroPowerAccelerationMultiplier.set(4.0);
+                c.centripetalScaling.set(0.0005);
+                
+                c.pathEndTimeoutConstraint.set(500.0);
+                c.pathEndTValueConstraint.set(0.995);
+                c.pathEndVelocityConstraint.set(0.1);
             }
     );
 
+    public static Follower createFollower(HardwareMap hardwareMap) {
         return new Follower(
+                new PinpointLocalizer(hardwareMap, localizerConfig),
+                new Mecanum(hardwareMap, drivetrainConfig),
                 new Foresight(foresightConfig)
         );
     }
