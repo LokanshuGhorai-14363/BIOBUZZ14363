@@ -46,6 +46,23 @@ public class Constants {
 
     public static ForesightConfig foresightConfig = new ForesightConfig(
             c -> {
+                // End Constraints
+                c.parametricTConstraint.set(0.025);
+                c.velocityConstraint.set(0.1);
+                c.translationalConstraint.set(0.1);
+                c.headingConstraint.set(Math.toRadians(0.4));
+                c.timeoutConstraint.set(100.0);
+
+                // Foresight Options
+                c.headingDriveRatio.set(0.5);
+                c.brakeAtEnd.set(true);
+                c.translationalDeviationTolerance.set(2.5);
+                c.headingDeviationTolerance.set(Math.toRadians(11.25));
+                c.cosineScale.set(false);
+
+                // Path Constraints / Braking
+                c.brakeAggression.set(1.0);
+                c.maxBrakingPower.set(0.2);
             }
     );
 
