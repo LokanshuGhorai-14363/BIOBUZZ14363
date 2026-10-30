@@ -18,8 +18,8 @@ import Commands.ShootStartCommand;
 import Commands.ShootStopCommand;
 
 import Subsystems.DriveSubsystem;
-import Subsystems.FlipperSubsystem;
 import Subsystems.IntakeSubsystem;
+import Subsystems.TransferSubsystem;
 import Subsystems.TurretShooterSubsystem;
 
 /**
@@ -34,6 +34,7 @@ import Subsystems.TurretShooterSubsystem;
  *   <tr><td>Left Trigger (analog)</td><td>Intake IN + Transfer (auto-stop & auto-eject)</td></tr>
  *   <tr><td>Left Bumper</td><td>Intake OUT + Transfer (manual reverse)</td></tr>
  *   <tr><td>X Button</td><td>Manual Auto-Eject / Purge sequence</td></tr>
+ *   <tr><td>A Button</td><td>Manual Transfer (goBILDA 1150 RPM motor)</td></tr>
  *   <tr><td>Right Trigger (analog)</td><td>Turret Shooter START (PID control)</td></tr>
  *   <tr><td>Right Bumper</td><td>Turret Shooter STOP</td></tr>
  * </table>
@@ -41,7 +42,7 @@ import Subsystems.TurretShooterSubsystem;
  * <h3>Autonomous Background Logic</h3>
  * <ul>
  *   <li>{@link IntakeSubsystem}: Monitors 4 color sensors along transfer path. Auto-stops when full, auto-ejects illegal (BLUE) balls.</li>
- *   <li>{@link FlipperSubsystem}: Continuously polls distance sensor and auto-flips detected balls into the turret.</li>
+ *   <li>{@link TransferSubsystem}: Continuously polls distance sensor and auto-transfers detected balls into the scoring mechanism.</li>
  * </ul>
  *
  * <h3>Performance</h3>
@@ -53,7 +54,7 @@ public class MainTeleOp extends CommandOpMode {
     // ── Subsystems ────────────────────────────────────────────────────────────
     private DriveSubsystem        driveSubsystem;
     private IntakeSubsystem       intakeSubsystem;
-    private FlipperSubsystem      flipperSubsystem;
+    private TransferSubsystem     transferSubsystem;
     private TurretShooterSubsystem turretShooterSubsystem;
 
     // ── Gamepad wrapper ───────────────────────────────────────────────────────
@@ -77,14 +78,14 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         driveSubsystem        = new DriveSubsystem(hardwareMap, telemetry);
         intakeSubsystem       = new IntakeSubsystem(hardwareMap, telemetry);
-        flipperSubsystem      = new FlipperSubsystem(hardwareMap, telemetry);
+        transferSubsystem     = new TransferSubsystem(hardwareMap, telemetry);
         turretShooterSubsystem = new TurretShooterSubsystem(hardwareMap, telemetry);
 
         // ────────────────────────────────────────────────────────────────────
         // 3. Register subsystems with the scheduler
         //    (DriveSubsystem is registered implicitly via setDefaultCommand)
         // ────────────────────────────────────────────────────────────────────
-        register(intakeSubsystem, flipperSubsystem, turretShooterSubsystem);
+        register(intakeSubsystem, transferSubsystem, turretShooterSubsystem);
 
         // ────────────────────────────────────────────────────────────────────
         // 4. Wrap gamepad
@@ -130,6 +131,10 @@ public class MainTeleOp extends CommandOpMode {
         // ── Manual Auto-Eject / Purge — X Button ──────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.X)
                 .whenPressed(new AutoEjectCommand(intakeSubsystem));
+
+        // ── Manual Transfer — A Button ────────────────────────────────────
+        new GamepadButton(driverGamepad, GamepadKeys.Button.A)
+                .whenPressed(transferSubsystem::transfer);
 
         // ── Turret Shooter START — Right Trigger (analog > 0.05) ──────────
         new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05)
