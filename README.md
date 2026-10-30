@@ -1,4 +1,4 @@
-# BIOBUZZ Team 14363 — Robot Controller Codebase (2026–2027) [COPY IN TEAM CODE]
+# BIOBUZZ Team 14363 — Robot Controller Codebase (2026–2027)
 
 Official FTC Java repository for **BIOBUZZ Team 14363** competing in the **2026–2027 FIRST Tech Challenge season (BIOBUZZ)**. This software package is built on the FTC SDK 12.0.0 and utilizes the FTCLib Command-Based framework, Pedro Pathing 3.x motion algorithms, GoBilda Pinpoint odometry, and Limelight 3A vision tracking.
 
@@ -26,7 +26,7 @@ Official FTC Java repository for **BIOBUZZ Team 14363** competing in the **2026�
 * **Season:** 2026–2027 FIRST Tech Challenge
 * **Game Name:** BIOBUZZ (Target Game Pieces: Pollen & Nectar)
 
-Team 14363 BIOBUZZ operates a competition robot featuring a 4-wheel Mecanum drivetrain controlled via Pedro Pathing 3.x kinematics and GoBilda Pinpoint dual-pod odometry, an automated intake subsystem equipped with 4 sequential color sensors for cargo classification and illegal color mixture auto-purging, a single-motor transfer mechanism powered by a goBILDA Yellow Jacket 1150 RPM motor and REV 2m distance sensor, a single-motor closed-loop PID flywheel shooter (goBILDA Yellow Jacket 6000 RPM) paired with a spring-loaded backboard, a 355° Axon MAX Mark 2 servo turret, and a Limelight 3A vision unit delivering real-time goal tracking and PedroPathing relocalization.
+Team 14363 BIOBUZZ operates a competition robot featuring a 4-wheel Mecanum drivetrain controlled via Pedro Pathing 3.x kinematics and GoBilda Pinpoint dual-pod odometry, a proportional analog intake subsystem (goBILDA 1100 RPM intake motor), a single-motor transfer mechanism powered by a goBILDA Yellow Jacket 1150 RPM motor, a single-motor closed-loop PID flywheel shooter (goBILDA Yellow Jacket 6000 RPM) paired with a spring-loaded backboard, a 355° Axon MAX Mark 2 servo turret, and a Limelight 3A vision unit delivering real-time goal tracking and PedroPathing relocalization.
 
 ---
 
@@ -39,9 +39,9 @@ Team 14363 BIOBUZZ operates a competition robot featuring a 4-wheel Mecanum driv
 | `Left Stick Y` | `DriveSubsystem` | Translation Forward / Backward (negated FTC convention) |
 | `Left Stick X` | `DriveSubsystem` | Translation Strafe Left / Right |
 | `Right Stick X` | `DriveSubsystem` | Drivetrain Rotation |
-| `Left Trigger` (analog > 0.05) | `IntakeInCommand` | Intake IN + Transfer (auto-stops when full at 4 balls, auto-ejects illegal Red+Blue mix) |
+| `Left Trigger` (analog > 0.05) | `IntakeInCommand` | Intake IN + Transfer (proportional speed directly mapped to analog trigger depth) |
 | `Left Bumper` | `IntakeOutCommand` | Intake OUT + Transfer (manual reverse eject cargo) |
-| `X Button` | `AutoEjectCommand` | Manual Auto-Eject / Purge sequence (runs motors in reverse until color sensors report empty) |
+| `X Button` | `AutoEjectCommand` | Manual Purge sequence (1-second full reverse spin) |
 | `A Button` | `TransferSubsystem` | Manual Transfer trigger (runs 1150 RPM transfer motor for 500 ms) |
 | `Right Trigger` (analog > 0.05) | `ShootStartCommand` | Turret Shooter START (PID closed-loop flywheel spin-up) |
 | `Right Bumper` | `ShootStopCommand` | Turret Shooter STOP (immediate flywheel stop) |
@@ -59,7 +59,7 @@ Team 14363 BIOBUZZ operates a competition robot featuring a 4-wheel Mecanum driv
 
 | Class Name | Annotation & Group | Type | Description |
 | --- | --- | --- | --- |
-| `MainTeleOp` | `@TeleOp(name = "Main TeleOp", group = "Competition")` | TeleOp | Primary competition TeleOp integrating command-based Mecanum drive, intake automation, transfer motor control, flywheel shooter PID, and bulk caching. |
+| `MainTeleOp` | `@TeleOp(name = "Main TeleOp", group = "Competition")` | TeleOp | Primary competition TeleOp integrating command-based Mecanum drive, proportional trigger intake, transfer motor control, flywheel shooter PID, and bulk caching. |
 | `BlueVisionTeleOp` | `@TeleOp(name = "Blue Vision TeleOp", group = "Competition")` | TeleOp | Competition TeleOp for Blue Alliance featuring automated Pinpoint odometry turret tracking to Blue goals and vision relocalization. |
 | `RedVisionTeleOp` | `@TeleOp(name = "Red Vision TeleOp", group = "Competition")` | TeleOp | Competition TeleOp for Red Alliance featuring automated Pinpoint odometry turret tracking to Red goals and vision relocalization. |
 | `VisionTeleOp` | Abstract Base Class | TeleOp Base | Base class extending `CommandOpMode` providing automated turret goal tracking and PedroPathing relocalization for alliance-specific TeleOps. |
@@ -79,8 +79,8 @@ Team 14363 BIOBUZZ operates a competition robot featuring a 4-wheel Mecanum driv
 | Subsystem Class | Hardware Controlled (Config Name) | Key Behaviors & Features |
 | --- | --- | --- |
 | `DriveSubsystem` | `leftFront`, `rightFront`, `leftRear`, `rightRear` (`DcMotorEx`), `"pinpoint"` (`GoBildaPinpointDriver`) | Field-centric and robot-centric Mecanum kinematics driven by Pedro Pathing `Follower`, heading normalization, pose estimation, and vision relocalization. |
-| `IntakeSubsystem` | `intakeMotor` (`DcMotorEx`, goBILDA 1100 RPM), `transferMotor` (`DcMotorEx`), `colorSensor1`..`colorSensor4` (`NormalizedColorSensor`) | Inward/outward cargo intaking, ball color classification (Pollen #FFC82E, Nectar Red #ED1C24, Nectar Blue #0066B3), 4-ball full-capacity auto-stop, and zero-tolerance illegal Red+Blue mixture auto-ejection. |
-| `TransferSubsystem` | `transferMotor` (`DcMotorEx`, goBILDA 1150 RPM), `transferSensor` (`DistanceSensor`, REV 2m) | Automated ball detection (`< 5.0 cm`) or manual trigger (`A` button). State machine (`IDLE`, `TRANSFERRING`, `COOLDOWN`) running motor at full power (1.0) for 500 ms with 1000 ms cooldown. |
+| `IntakeSubsystem` | `intakeMotor` (`DcMotorEx`, goBILDA 1100 RPM), `transferMotor` (`DcMotorEx`, goBILDA 1150 RPM) | Inward/outward cargo intaking driven proportionally by analog trigger pressure (`0.0` to `1.0`). |
+| `TransferSubsystem` | `transferMotor` (`DcMotorEx`, goBILDA 1150 RPM) | Manual trigger (`A` button). State machine (`IDLE`, `TRANSFERRING`, `COOLDOWN`) running motor at full power (`1.0`) for 500 ms with 1000 ms cooldown. |
 | `TurretShooterSubsystem` | `shooterMotor` (`DcMotorEx`, goBILDA 6000 RPM, `"shooterMotor"`) | Closed-loop PID + Feedforward flywheel velocity control, state tracking (`IDLE`, `SPINNING_UP`, `AT_SPEED`), target RPM calculation, and detailed encoder telemetry. |
 | `TurretSubsystem` | `turretServo` (`Servo`, Axon MAX Mark 2, `"turretServo"`) | Position-controlled rotation mechanism (0° to 220° physical range mapped from 0° to 355° servo PWM). |
 | `VisionSubsystem` | `limelight` (`Limelight3A`) | Limelight 3A AprilTag targeting, dynamic goal coordinate resolution, Pinpoint odometry turret angle calculation, and corrected botpose calculation. |
@@ -146,11 +146,6 @@ Team 14363 BIOBUZZ operates a competition robot featuring a 4-wheel Mecanum driv
 | `"pinpoint"` | `GoBildaPinpointDriver` | `DriveSubsystem` — GoBilda Pinpoint Odometry Localizer |
 | `"intakeMotor"` | `DcMotorEx` (goBILDA 1100 RPM) | `IntakeSubsystem` — Intake Motor |
 | `"transferMotor"` | `DcMotorEx` (goBILDA 1150 RPM) | `TransferSubsystem` & `IntakeSubsystem` — Transfer Mechanism |
-| `"colorSensor1"` | `NormalizedColorSensor` | `IntakeSubsystem` — Color Sensor 1 (Transfer Entry) |
-| `"colorSensor2"` | `NormalizedColorSensor` | `IntakeSubsystem` — Color Sensor 2 (Transfer Mid-Lower) |
-| `"colorSensor3"` | `NormalizedColorSensor` | `IntakeSubsystem` — Color Sensor 3 (Transfer Mid-Upper) |
-| `"colorSensor4"` | `NormalizedColorSensor` | `IntakeSubsystem` — Color Sensor 4 (Transfer Exit) |
-| `"transferSensor"` | `DistanceSensor` (REV 2m) | `TransferSubsystem` — Transfer Distance Sensor |
 | `"shooterMotor"` | `DcMotorEx` (goBILDA 6000 RPM) | `TurretShooterSubsystem` — Flywheel Shooter Motor |
 | `"turretServo"` | `Servo` (Axon MAX Mark 2) | `TurretSubsystem` — Rotating Turret Mechanism |
 | `"limelight"` | `Limelight3A` | `VisionSubsystem` — Limelight Vision Camera |

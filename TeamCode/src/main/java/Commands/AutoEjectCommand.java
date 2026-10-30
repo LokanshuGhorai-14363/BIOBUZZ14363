@@ -1,23 +1,30 @@
 package Commands;
 
 import com.arcrobotics.ftclib.command.CommandBase;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import Subsystems.IntakeSubsystem;
 
 /**
- * AutoEjectCommand — runs intake and transfer motors in full reverse
- * until all 4 color sensors report empty (NONE).
+ * AutoEjectCommand — timed reverse purge of intake and transfer motors for 1 second.
  */
 public class AutoEjectCommand extends CommandBase {
 
     private final IntakeSubsystem intakeSubsystem;
+    private final ElapsedTime     timer = new ElapsedTime();
+    public static final double    PURGE_DURATION_MS = 1000.0;
 
     /**
-     * @param intakeSubsystem the intake subsystem controlling intake + transfer motors and color sensors
+     * @param intakeSubsystem the intake subsystem controlling intake + transfer motors
      */
     public AutoEjectCommand(IntakeSubsystem intakeSubsystem) {
         this.intakeSubsystem = intakeSubsystem;
         addRequirements(intakeSubsystem);
+    }
+
+    @Override
+    public void initialize() {
+        timer.reset();
     }
 
     @Override
@@ -32,6 +39,6 @@ public class AutoEjectCommand extends CommandBase {
 
     @Override
     public boolean isFinished() {
-        return intakeSubsystem.areAllSensorsEmpty();
+        return timer.milliseconds() >= PURGE_DURATION_MS;
     }
 }

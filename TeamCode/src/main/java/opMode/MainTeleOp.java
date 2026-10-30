@@ -31,9 +31,9 @@ import Subsystems.TurretShooterSubsystem;
  *   <tr><td>Left Stick Y</td><td>Drive forward / backward</td></tr>
  *   <tr><td>Left Stick X</td><td>Strafe left / right</td></tr>
  *   <tr><td>Right Stick X</td><td>Rotate</td></tr>
- *   <tr><td>Left Trigger (analog)</td><td>Intake IN + Transfer (auto-stop & auto-eject)</td></tr>
+ *   <tr><td>Left Trigger (analog)</td><td>Intake IN + Transfer (proportional speed)</td></tr>
  *   <tr><td>Left Bumper</td><td>Intake OUT + Transfer (manual reverse)</td></tr>
- *   <tr><td>X Button</td><td>Manual Auto-Eject / Purge sequence</td></tr>
+ *   <tr><td>X Button</td><td>Manual Purge sequence (1-second reverse spin)</td></tr>
  *   <tr><td>A Button</td><td>Manual Transfer (goBILDA 1150 RPM motor)</td></tr>
  *   <tr><td>Right Trigger (analog)</td><td>Turret Shooter START (PID control)</td></tr>
  *   <tr><td>Right Bumper</td><td>Turret Shooter STOP</td></tr>
@@ -41,8 +41,8 @@ import Subsystems.TurretShooterSubsystem;
  *
  * <h3>Autonomous Background Logic</h3>
  * <ul>
- *   <li>{@link IntakeSubsystem}: Monitors 4 color sensors along transfer path. Auto-stops when full, auto-ejects illegal (BLUE) balls.</li>
- *   <li>{@link TransferSubsystem}: Continuously polls distance sensor and auto-transfers detected balls into the scoring mechanism.</li>
+ *   <li>{@link IntakeSubsystem}: Controls intake and transfer motors proportionally based on trigger pressure.</li>
+ *   <li>{@link TransferSubsystem}: Handles timed transfer sequence into scoring mechanism.</li>
  * </ul>
  *
  * <h3>Performance</h3>
@@ -115,7 +115,7 @@ public class MainTeleOp extends CommandOpMode {
      * Map all gamepad inputs to their respective commands.
      */
     private void configureBindings() {
-        // ── Intake IN + Transfer — Left Trigger (analog, > 0.05 deadzone) ──
+        // ── Intake IN + Transfer — Left Trigger (proportional analog, > 0.05 deadzone) ──
         new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) > 0.05)
                 .whileActiveContinuous(
                         new IntakeInCommand(
