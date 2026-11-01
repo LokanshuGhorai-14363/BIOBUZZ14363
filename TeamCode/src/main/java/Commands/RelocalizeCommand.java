@@ -2,63 +2,48 @@ package Commands;
 
 import com.arcrobotics.ftclib.command.CommandBase;
 import com.pedropathing.math.Pose;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import Subsystems.DriveSubsystem;
 import Subsystems.VisionSubsystem;
-import Subsystems.VisionSubsystem.Alliance;
 
 /**
- * RelocalizeCommand — Autonomously drives to a designated corner based on the alliance.
- * Interrupts TeleOp driving when executed.
+ * RelocalizeCommand — Immediately resets the robot's Pinpoint odometry pose
+ * to the known Top-Left Square position (12.0in, 132.0in, 270°).
+ *
+ * Triggered by D-Pad UP when the robot is placed in the top-left square.
  */
 public class RelocalizeCommand extends CommandBase {
 
     private final DriveSubsystem driveSubsystem;
     private final VisionSubsystem visionSubsystem;
-    
-    // Top Left (Red Alliance)
-    private static final Pose RED_TARGET_POSE = new Pose(120, 120, Math.toRadians(180));
-    // Bottom Right (Blue Alliance)
-    private static final Pose BLUE_TARGET_POSE = new Pose(24, 24, 0);
-    
-    private final Alliance currentAlliance;
+    private final Telemetry telemetry;
 
-    public RelocalizeCommand(DriveSubsystem driveSubsystem, VisionSubsystem visionSubsystem, Alliance alliance) {
+    public RelocalizeCommand(DriveSubsystem driveSubsystem, VisionSubsystem visionSubsystem, Telemetry telemetry) {
         this.driveSubsystem = driveSubsystem;
         this.visionSubsystem = visionSubsystem;
-        this.currentAlliance = alliance;
-        
-        // Requires drive subsystem to interrupt joystick driving
-        addRequirements(driveSubsystem);
+        this.telemetry = telemetry;
+    }
+
+    public RelocalizeCommand(DriveSubsystem driveSubsystem, VisionSubsystem visionSubsystem) {
+        this(driveSubsystem, visionSubsystem, null);
     }
 
     @Override
     public void initialize() {
-        Pose target = (currentAlliance == Alliance.RED) ? RED_TARGET_POSE : BLUE_TARGET_POSE;
-        driveSubsystem.followPathTo(target);
-    }
+        Pose relocalizePose = visionSubsystem.getTopLeftRelocalizePose();
+        driveSubsystem.setPose(relocalizePose);
 
-    private long lastRelocalizeTime = 0;
-
-    @Override
-    public void execute() {
-        // Limit relocalization to 10Hz to prevent excessive odometry jitter and reduce loop times
-        if (System.currentTimeMillis() - lastRelocalizeTime > 100) {
-            Pose correctedPose = visionSubsystem.getCorrectedBotPose();
-            if (correctedPose != null) {
-                driveSubsystem.setPose(correctedPose);
-                lastRelocalizeTime = System.currentTimeMillis();
-            }
+        if (telemetry != null) {
+            telemetry.addData(">> STATUS", "RELOCALIZED TO TOP-LEFT SQUARE");
+            telemetry.addData(">> New Pose", String.format("(%.1fin, %.1fin, %.1f°)", 
+                    relocalizePose.x(), relocalizePose.y(), Math.toDegrees(relocalizePose.heading())));
+            telemetry.update();
         }
     }
 
     @Override
     public boolean isFinished() {
-        return driveSubsystem.isPathComplete();
-    }
-
-    @Override
-    public void end(boolean interrupted) {
-        driveSubsystem.resumeTeleOp();
+        return true;
     }
 }

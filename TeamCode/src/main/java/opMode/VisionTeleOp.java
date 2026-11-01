@@ -5,6 +5,7 @@ import com.arcrobotics.ftclib.command.RunCommand;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 
 import java.util.List;
@@ -52,9 +53,15 @@ public abstract class VisionTeleOp extends CommandOpMode {
         // Configure alliance in VisionSubsystem
         visionSubsystem.setAlliance(alliance);
 
+        // 3. Set robot initial start pose based on alliance:
+        // Red: Back against y=0 wall, back-right corner at (X=72, Y=0) -> (63.25, 7.25, 90°)
+        // Blue: Back against y=144 wall, back-right corner at (X=72, Y=144) -> (80.75, 136.75, 270°)
+        Pose startPose = visionSubsystem.getStartPose(alliance);
+        driveSubsystem.setPose(startPose);
+
         driverGamepad = new GamepadEx(gamepad1);
 
-        // 3. Default Drive Command
+        // 4. Default Drive Command
         driveSubsystem.setDefaultCommand(new DefaultDriveCommand(
                 driveSubsystem,
                 () -> -driverGamepad.getLeftY(),
@@ -62,7 +69,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 () -> driverGamepad.getRightX()
         ));
 
-        // 4. Default Turret Command (Auto-tracking Goal using Pinpoint Odometry)
+        // 5. Default Turret Command (Auto-tracking Goal using Pinpoint Odometry)
         turretSubsystem.setDefaultCommand(new RunCommand(
                 () -> {
                     double targetAngle = visionSubsystem.calculateOdometryTurretAngle();
@@ -71,12 +78,14 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 turretSubsystem
         ));
 
-        // 5. Button Bindings
-        // D-Pad UP for Relocalization
+        // 6. Button Bindings
+        // D-Pad UP: Manual relocalization when placed in the top-left square
         new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_UP)
-                .whenPressed(() -> new RelocalizeCommand(driveSubsystem, visionSubsystem, alliance).schedule());
+                .whenPressed(new RelocalizeCommand(driveSubsystem, visionSubsystem, telemetry));
 
         telemetry.addData(">> Vision TeleOp Initialized for Alliance", alliance);
+        telemetry.addData(">> Initial Pose", String.format("(%.1fin, %.1fin, %.1f°)", 
+                startPose.x(), startPose.y(), Math.toDegrees(startPose.heading())));
         telemetry.update();
     }
 
@@ -87,8 +96,6 @@ public abstract class VisionTeleOp extends CommandOpMode {
             hub.clearBulkCache();
         }
 
-        //FTC lib crashes when clock speed over 1.5 ghz
-        //tim.sleep(3000) (3sec)
         // Run the FTCLib CommandScheduler
         super.run();
 

@@ -1,31 +1,26 @@
 package Subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
-import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import com.pedropathing.math.Pose;
-import java.util.Arrays;
-import java.util.List;
 
 /**
- * VisionSubsystem — Limelight 3A integration & Pinpoint Odometry aiming for dynamic turret tracking.
- *
- * The Limelight is mounted on a rotating turret, 84.125 mm to the LEFT of the center,
- * with a 21-degree upward pitch.
+ * VisionSubsystem — Pinpoint Odometry goal aiming and turret tracking.
  *
  * Field Specifications:
- * - Field Size: 144in x 144in (Origin (0,0) at bottom-left)
+ * - Field Size: 144in x 144in (Origin (0,0) at bottom-left / Audience-left)
+ * - Robot Size: 17.5in Wide x 14.5in Long
+ * - Red Start Pose: (63.25, 7.25, 90°) [Back against wall at y=0, back-right corner at (X=72, Y=0)]
+ * - Blue Start Pose: (80.75, 136.75, 270°) [Back against other wall at y=144, back-right corner at (X=72, Y=144)]
+ * - Top-Left Relocalize Pose: (12.0, 132.0, 270°) [Top-Left Tile [0,24]x[120,144]]
  * - Red Alliance Goals:  (60in, 60in) and (60in, 84in)
  * - Blue Alliance Goals: (84in, 60in) and (84in, 84in)
  */
 public class VisionSubsystem extends SubsystemBase {
 
-    private final Limelight3A limelight;
     private final Telemetry telemetry;
     private final TurretSubsystem turretSubsystem;
     private final DriveSubsystem driveSubsystem;
@@ -33,34 +28,43 @@ public class VisionSubsystem extends SubsystemBase {
     public enum Alliance { RED, BLUE }
     private Alliance currentAlliance = Alliance.RED;
 
-    // Y-Offset of Limelight from turret center (in mm)
-    public static final double Y_OFFSET_MM = 84.125;
-    public static final double Y_OFFSET_INCHES = Y_OFFSET_MM / 25.4; // Precalculated
-
-    // Pitch angle of the Limelight (in degrees)
-    public static final double PITCH_ANGLE_DEG = 21.0;
-
-    // Field & Goal Coordinates (in inches)
+    // Field & Robot Dimensions (in inches)
     public static final double FIELD_SIZE_INCHES = 144.0;
     public static final double FIELD_MID_Y_INCHES = 72.0;
+    public static final double FIELD_MID_X_INCHES = 72.0;
 
-    // Red Alliance Goals: (60in, 60in) and (60in, 84in)
+    public static final double ROBOT_WIDTH_INCHES = 17.5;
+    public static final double ROBOT_LENGTH_INCHES = 14.5;
+
+    // ────────────────────────── Starting Poses ──────────────────────────
+    // Red Start: Back of robot against bottom wall (y=0), back-right corner at (X=72, Y=0).
+    // Facing forward into field (+Y direction, heading 90°).
+    // Center X = 72.0 - (17.5 / 2) = 63.25, Center Y = 0 + (14.5 / 2) = 7.25.
+    public static final Pose RED_START_POSE = new Pose(63.25, 7.25, Math.toRadians(90.0));
+
+    // Blue Start: Back of robot against top wall (y=144), back-right corner at (X=72, Y=144).
+    // Facing forward into field (-Y direction, heading 270° / -90°).
+    // Center X = 72.0 + (17.5 / 2) = 80.75, Center Y = 144.0 - (14.5 / 2) = 136.75.
+    public static final Pose BLUE_START_POSE = new Pose(80.75, 136.75, Math.toRadians(270.0));
+
+    // ───────────────────── Relocalization Poses ─────────────────────────
+    // Top-Left Square: Tile spanning X in [0, 24], Y in [120, 144].
+    // Center of tile is (12.0, 132.0). Default heading is facing into field (South, 270°).
+    public static final Pose TOP_LEFT_RELOCALIZE_POSE = new Pose(12.0, 132.0, Math.toRadians(270.0));
+
+    // ──────────────────────── Goal Coordinates ──────────────────────────
+    // Red Alliance Goals: Column 3 (W-X seam) -> (60in, 60in) and (60in, 84in)
     public static final double RED_GOAL_X = 60.0;
-    public static final double RED_GOAL_Y1 = 60.0;
-    public static final double RED_GOAL_Y2 = 84.0;
+    public static final double RED_GOAL_Y1 = 60.0; // Lower Red Goal (Row 3)
+    public static final double RED_GOAL_Y2 = 84.0; // Upper Red Goal (Row 4)
 
-    // Blue Alliance Goals: (84in, 60in) and (84in, 84in)
+    // Blue Alliance Goals: Column 4 (X-Y seam) -> (84in, 60in) and (84in, 84in)
     public static final double BLUE_GOAL_X = 84.0;
-    public static final double BLUE_GOAL_Y1 = 60.0;
-    public static final double BLUE_GOAL_Y2 = 84.0;
+    public static final double BLUE_GOAL_Y1 = 60.0; // Lower Blue Goal (Row 3)
+    public static final double BLUE_GOAL_Y2 = 84.0; // Upper Blue Goal (Row 4)
 
-    // Target Tag IDs for Limelight fallback
-    private final List<Integer> RED_SCORING_TAGS = Arrays.asList(30, 31, 32, 33);
-    private final List<Integer> RED_AUDIENCE_TAGS = Arrays.asList(34, 35, 36, 37);
-    private final List<Integer> BLUE_SCORING_TAGS = Arrays.asList(42, 43, 44, 45);
-    private final List<Integer> BLUE_AUDIENCE_TAGS = Arrays.asList(38, 39, 40, 41);
-
-    private LLResult lastResult;
+    // Turret Zero / Center Offset in degrees (0.0 if turret servo 0° is facing forward, or 110.0 if centered)
+    public static double TURRET_ZERO_OFFSET_DEG = 0.0;
 
     // Pre-allocated array to prevent object creation in active loops
     private final double[] activeTargetGoal = new double[2];
@@ -73,10 +77,6 @@ public class VisionSubsystem extends SubsystemBase {
         this.telemetry = telemetry;
         this.turretSubsystem = turretSubsystem;
         this.driveSubsystem = driveSubsystem;
-
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);
-        limelight.start();
     }
 
     public void setAlliance(Alliance alliance) {
@@ -87,20 +87,19 @@ public class VisionSubsystem extends SubsystemBase {
         return currentAlliance;
     }
 
+    public Pose getStartPose(Alliance alliance) {
+        return (alliance == Alliance.RED) ? RED_START_POSE : BLUE_START_POSE;
+    }
+
+    public Pose getTopLeftRelocalizePose() {
+        return TOP_LEFT_RELOCALIZE_POSE;
+    }
+
     @Override
     public void periodic() {
-        lastResult = limelight.getLatestResult();
-        
         // Only format/push telemetry every 100ms to prevent blocking the thread
         if (System.currentTimeMillis() - lastTelemetryTime > 100) {
             lastTelemetryTime = System.currentTimeMillis();
-
-            if (lastResult != null && lastResult.isValid()) {
-                telemetry.addData("LL Targets", lastResult.getTa());
-                telemetry.addData("LL tx", lastResult.getTx());
-            } else {
-                telemetry.addData("LL Targets", "None");
-            }
 
             // Output Odometry Aiming Info to Telemetry
             Pose robotPose = driveSubsystem.getPose();
@@ -109,7 +108,8 @@ public class VisionSubsystem extends SubsystemBase {
             double turretAngle = calculateOdometryTurretAngle();
 
             telemetry.addData("Alliance", currentAlliance);
-            // Avoid String.format (%.1f) inside loop to reduce CPU overhead
+            telemetry.addData("Robot Pose", String.format("(%.1f, %.1f, %.1f°)", 
+                    robotPose.x(), robotPose.y(), Math.toDegrees(robotPose.heading())));
             telemetry.addData("Target Goal", "( " + activeTargetGoal[0] + "in, " + activeTargetGoal[1] + "in )");
             telemetry.addData("Goal Distance", distance);
             telemetry.addData("Target Turret Angle", turretAngle);
@@ -137,7 +137,7 @@ public class VisionSubsystem extends SubsystemBase {
      * Calculates the required turret angle to aim directly at the active goal using
      * Pinpoint Odometry (Pedro Pathing robot pose).
      *
-     * @return Required turret angle in degrees.
+     * @return Required turret angle in degrees, clamped to [MIN_ANGLE_DEG, MAX_ANGLE_DEG].
      */
     public double calculateOdometryTurretAngle() {
         Pose robotPose = driveSubsystem.getPose();
@@ -158,79 +158,18 @@ public class VisionSubsystem extends SubsystemBase {
             relativeAngleRad += 2 * Math.PI;
         }
 
-        double targetAngleDeg = Math.toDegrees(relativeAngleRad);
+        double relativeAngleDeg = Math.toDegrees(relativeAngleRad);
 
-        // If target angle is negative, convert to positive [0, 360] range
-        return (targetAngleDeg < 0) ? targetAngleDeg + 360.0 : targetAngleDeg;
-    }
+        // Apply any mechanical turret zero offset
+        double commandedAngle = relativeAngleDeg + TURRET_ZERO_OFFSET_DEG;
 
-    /**
-     * Determines which tags to prioritize based on Alliance and robot's Y position.
-     * @return List of prioritized Tag IDs.
-     */
-    public List<Integer> getPrioritizedTags() {
-        Pose robotPose = driveSubsystem.getPose();
-        boolean isTopHalf = robotPose.y() > FIELD_MID_Y_INCHES;
-
-        if (currentAlliance == Alliance.RED) {
-            return isTopHalf ? RED_SCORING_TAGS : RED_AUDIENCE_TAGS;
-        } else {
-            return isTopHalf ? BLUE_SCORING_TAGS : BLUE_AUDIENCE_TAGS;
-        }
-    }
-
-    /**
-     * Calculates the robot's true center Pose for pedroPathing based on the Limelight's botpose.
-     * Applies the dynamic offset based on the current turret angle.
-     * 
-     * @return Corrected Pose of the robot center, or null if no valid botpose.
-     */
-    public Pose getCorrectedBotPose() {
-        if (lastResult == null || !lastResult.isValid()) return null;
-
-        Pose3D botpose3d = lastResult.getBotpose();
-        if (botpose3d == null) return null;
-
-        double camX = botpose3d.getPosition().x * 39.3701;
-        double camY = botpose3d.getPosition().y * 39.3701;
-        double camHeading = botpose3d.getOrientation().getYaw(); 
-
-        double turretAngleRad = Math.toRadians(turretSubsystem.getCurrentAngle());
-        double robotHeading = camHeading - turretAngleRad;
-
-        // Compute trig once to save loop time
-        double combinedHeading = robotHeading + turretAngleRad;
-        
-        double robotX = camX - Y_OFFSET_INCHES * Math.sin(combinedHeading);
-        double robotY = camY + Y_OFFSET_INCHES * Math.cos(combinedHeading);
-        
-        return new Pose(robotX, robotY, robotHeading);
-    }
-
-    /**
-     * Calculates the required turret angle to track the optimal prioritized tag, 
-     * accounting for the Limelight's physical offset and pitch.
-     * 
-     * @return The target angle in degrees for the TurretSubsystem, or current angle if no target.
-     */
-    public double calculateRequiredTurretAngle() {
-        if (lastResult == null || !lastResult.isValid()) {
-            return calculateOdometryTurretAngle();
+        // Clamp to physical limits [0, 220] instead of wrapping around to 360°
+        if (commandedAngle < TurretSubsystem.MIN_ANGLE_DEG) {
+            commandedAngle = TurretSubsystem.MIN_ANGLE_DEG;
+        } else if (commandedAngle > TurretSubsystem.MAX_ANGLE_DEG) {
+            commandedAngle = TurretSubsystem.MAX_ANGLE_DEG;
         }
 
-        double tx = lastResult.getTx();
-        double ty = lastResult.getTy();
-        
-        double assumedDistanceMm = 1000.0; 
-        
-        double tagX_cam = assumedDistanceMm * Math.sin(Math.toRadians(tx));
-        double tagY_cam = assumedDistanceMm * Math.cos(Math.toRadians(tx));
-        
-        double tagX_turret = tagX_cam;
-        double tagY_turret = tagY_cam + Y_OFFSET_MM;
-        
-        double angleAdjustment = Math.toDegrees(Math.atan2(tagX_turret, tagY_turret));
-        
-        return turretSubsystem.getCurrentAngle() + angleAdjustment;
+        return commandedAngle;
     }
 }
