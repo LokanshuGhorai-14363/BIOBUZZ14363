@@ -63,8 +63,8 @@ public class VisionSubsystem extends SubsystemBase {
     public static final double BLUE_GOAL_Y1 = 60.0; // Lower Blue Goal (Row 3)
     public static final double BLUE_GOAL_Y2 = 84.0; // Upper Blue Goal (Row 4)
 
-    // Turret Zero / Center Offset in degrees (0.0 if turret servo 0° is facing forward, or 110.0 if centered)
-    public static double TURRET_ZERO_OFFSET_DEG = 0.0;
+    // Turret Zero / Center Offset in degrees (100.0° points straight forward relative to robot)
+    public static double TURRET_ZERO_OFFSET_DEG = 100.0;
 
     // Pre-allocated array to prevent object creation in active loops
     private final double[] activeTargetGoal = new double[2];
