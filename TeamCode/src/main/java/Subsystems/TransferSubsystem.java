@@ -69,8 +69,9 @@ public class TransferSubsystem extends SubsystemBase {
     // ───────────────────────────── Actions & Controls ─────────────────────────
 
     /**
-     * Manually triggers a transfer sequence if the subsystem is currently IDLE.
+     * Manually triggers a timed transfer sequence if the subsystem is currently IDLE.
      * Runs the transfer motor at full power (1.0) to move the game element to the scoring mechanism.
+     * This is designed for the dedicated "transfer" button (e.g. A button).
      */
     public void transfer() {
         if (state == TransferState.IDLE) {
@@ -85,6 +86,39 @@ public class TransferSubsystem extends SubsystemBase {
         transferMotor.setPower(FULL_POWER);
         stateTimer.reset();
         state = TransferState.TRANSFERRING;
+    }
+
+    /**
+     * Spin the transfer motor at a proportional power level (0.0–1.0).
+     * <p>
+     * This bypasses the timed transfer state machine and is intended to be
+     * called continuously from a trigger-proportional command so the transfer
+     * motor feeds smoothly in sync with the intake motor.
+     * <p>
+     * If a timed transfer sequence is already running, this call is ignored
+     * to avoid conflicting with the state machine.
+     *
+     * @param analogPower raw analog input value (0.0–1.0, e.g. trigger axis)
+     */
+    public void spinProportional(double analogPower) {
+        if (state != TransferState.IDLE) {
+            return; // don't fight the timed transfer state machine
+        }
+        double power = Math.max(0.0, Math.min(1.0, Math.abs(analogPower)));
+        transferMotor.setPower(power);
+    }
+
+    /**
+     * Spin the transfer motor in reverse at a proportional power level.
+     *
+     * @param analogPower raw analog input value (0.0–1.0)
+     */
+    public void spinProportionalReverse(double analogPower) {
+        if (state != TransferState.IDLE) {
+            return;
+        }
+        double power = Math.max(0.0, Math.min(1.0, Math.abs(analogPower)));
+        transferMotor.setPower(-power);
     }
 
     /**
