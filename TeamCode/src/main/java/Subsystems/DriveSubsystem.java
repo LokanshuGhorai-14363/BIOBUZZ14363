@@ -35,6 +35,14 @@ public class DriveSubsystem extends SubsystemBase {
     private static final Pose START_POSE = new Pose(0, 0, 0);
 
     /**
+     * Heading offset (radians) for field-centric driving.
+     * When the driver presses the "reset heading" button, this is set to the
+     * current robot heading so the joystick "forward" aligns with whatever
+     * direction the robot is facing at that moment.
+     */
+    private double headingOffset = 0.0;
+
+    /**
      * @param hardwareMap the robot's HardwareMap
      * @param telemetry   driver-station telemetry for debug output
      */
@@ -57,6 +65,47 @@ public class DriveSubsystem extends SubsystemBase {
      */
     public void drive(double forward, double strafe, double rotation) {
         follower.drivetrain.drive(new DrivePowers(forward, strafe, rotation), true);
+    }
+
+    /**
+     * Field-centric drive using the Pinpoint localizer's heading.
+     * <p>
+     * The joystick (forward, strafe) vector is rotated by the negative of
+     * (robotHeading − headingOffset) so that "forward" on the stick always
+     * means the direction the robot was facing when the heading was last reset.
+     *
+     * @param forward  left-stick Y (positive = forward in field frame)
+     * @param strafe   left-stick X (positive = right in field frame)
+     * @param rotation right-stick X
+     */
+    public void driveFieldCentric(double forward, double strafe, double rotation) {
+        double heading = getHeading() - headingOffset;
+
+        // Rotate joystick vector into the robot's local frame
+        double cos = Math.cos(-heading);
+        double sin = Math.sin(-heading);
+        double robotForward = forward * cos - strafe * sin;
+        double robotStrafe  = forward * sin + strafe * cos;
+
+        follower.drivetrain.drive(new DrivePowers(robotForward, robotStrafe, rotation), true);
+    }
+
+    // ───────────────────────────── Heading helpers ─────────────────────────────
+
+    /**
+     * Returns the current robot heading in radians from the Pinpoint localizer.
+     */
+    public double getHeading() {
+        return follower.pose().heading();
+    }
+
+    /**
+     * Resets the field-centric heading reference to the robot's current heading.
+     * After calling this, "forward" on the joystick will mean whatever
+     * direction the robot is currently facing.
+     */
+    public void resetHeading() {
+        headingOffset = getHeading();
     }
 
     /**

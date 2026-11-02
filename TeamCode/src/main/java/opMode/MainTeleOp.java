@@ -1,7 +1,6 @@
 package opMode;
 
 import com.arcrobotics.ftclib.command.CommandOpMode;
-import com.arcrobotics.ftclib.command.InstantCommand;
 import com.arcrobotics.ftclib.command.RunCommand;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.command.button.Trigger;
@@ -15,6 +14,7 @@ import java.util.List;
 
 import Commands.AutoEjectCommand;
 import Commands.DefaultDriveCommand;
+import Commands.FieldCentricDriveCommand;
 import Commands.IntakeInCommand;
 import Commands.IntakeOutCommand;
 import Commands.ShootStartCommand;
@@ -51,6 +51,9 @@ public class MainTeleOp extends CommandOpMode {
 
     // Default to Red Alliance for Main TeleOp (change to BLUE if on Blue alliance)
     private Alliance alliance = Alliance.RED;
+
+    // Field-centric driving is enabled by default
+    private boolean fieldCentric = true;
 
     @Override
     public void initialize() {
@@ -90,12 +93,12 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         // 5. Default commands
         // ────────────────────────────────────────────────────────────────────
-        // Default Drive Command
-        driveSubsystem.setDefaultCommand(new DefaultDriveCommand(
+        // Default Drive Command — Field-Centric using Pinpoint heading
+        driveSubsystem.setDefaultCommand(new FieldCentricDriveCommand(
                 driveSubsystem,
-                () -> -driverGamepad.getLeftY(),   // forward
-                () ->  driverGamepad.getLeftX(),   // strafe
-                () ->  driverGamepad.getRightX()   // rotation
+                () -> -driverGamepad.getLeftY(),   // forward (field-relative)
+                () ->  driverGamepad.getLeftX(),   // strafe  (field-relative)
+                () ->  driverGamepad.getRightX()   // rotation (always robot-relative)
         ));
 
         // Default Turret Command — Automatically tracks alliance goal using Pinpoint Odometry
@@ -112,8 +115,9 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         configureBindings();
 
-        telemetry.addLine(">> Main TeleOp Initialized with Automated Turret Goal Tracking.");
+        telemetry.addLine(">> Main TeleOp Initialized — FIELD-CENTRIC DRIVE");
         telemetry.addData(">> Alliance", alliance);
+        telemetry.addData(">> Reset Heading", "Press Y to re-zero forward direction");
         telemetry.update();
     }
 
@@ -126,13 +130,14 @@ public class MainTeleOp extends CommandOpMode {
                 .whileActiveContinuous(
                         new IntakeInCommand(
                                 intakeSubsystem,
+                                transferSubsystem,
                                 () -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER)
                         )
                 );
 
-        // ── Intake OUT + Transfer — Left Bumper ───────────────────────────
+        // ── Intake OUT + Transfer — Left Bumper (full reverse) ────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.LEFT_BUMPER)
-                .whileHeld(new IntakeOutCommand(intakeSubsystem));
+                .whileHeld(new IntakeOutCommand(intakeSubsystem, transferSubsystem));
 
         // ── Manual Auto-Eject / Purge — X Button ──────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.X)
@@ -142,22 +147,23 @@ public class MainTeleOp extends CommandOpMode {
         new GamepadButton(driverGamepad, GamepadKeys.Button.A)
                 .whenPressed(transferSubsystem::transfer);
 
-        // ── Turret Shooter START / Spin — Right Trigger (analog > 0.05) ───
+        // ── Reset Field-Centric Heading — Y Button ────────────────────────
+        // Re-zeros which direction counts as "forward" on the joystick.
+        // Driver should face the robot away from them and press Y.
+        new GamepadButton(driverGamepad, GamepadKeys.Button.Y)
+                .whenPressed(driveSubsystem::resetHeading);
+
+        // ── Turret Shooter START / Latch ON — Right Trigger (press to latch) ──
+        // A single pull of the right trigger latches the shooter ON at the
+        // default short-range speed. It stays spinning until the driver
+        // explicitly presses Right Bumper to stop.
         new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
                        || gamepad1.right_trigger > 0.05)
-                .whileActiveContinuous(
-                        new RunCommand(
-                                () -> turretShooterSubsystem.spinWithTrigger(
-                                        Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger)
-                                ),
-                                turretShooterSubsystem
-                        )
-                )
-                .whenInactive(
-                        new InstantCommand(turretShooterSubsystem::stop, turretShooterSubsystem)
+                .whenActive(
+                        new ShootStartCommand(turretShooterSubsystem)
                 );
 
-        // ── Turret Shooter Manual STOP — Right Bumper ─────────────────────
+        // ── Turret Shooter STOP / Latch OFF — Right Bumper ────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
                 .whenPressed(new ShootStopCommand(turretShooterSubsystem));
     }

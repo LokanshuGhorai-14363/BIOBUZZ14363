@@ -14,16 +14,24 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 /**
  * TurretSubsystem — Controls the spinning turret mechanism.
  *
- * Supports two modes:
- * 1. Closed-Loop CRServo + Analog Encoder (active when "turretEncoder" on Analog Port 1 is reading >0.05V).
- * 2. Standard Position Servo PWM mode (active when "turretServo" is set as a standard Servo on Servo Port 0).
+ * Supports two mutually-exclusive modes (detected at init):
+ * 1. CR_SERVO: Closed-Loop CRServo + Analog Encoder feedback via PID.
+ * 2. STANDARD_SERVO: Standard Position Servo PWM (open-loop positional).
+ *
+ * The mode is locked at construction time so the wrong PWM signal type is never
+ * sent to the wrong servo type (which was the previous cause of the servo
+ * slamming to one side and twitching on init).
  *
  * Range: 0° to 200° (100° is straight forward relative to the robot).
  */
 public class TurretSubsystem extends SubsystemBase {
 
-    private final Servo standardServo;
-    private final CRServo crServo;
+    /** Explicitly tracked servo mode — set once in the constructor, never changed. */
+    private enum TurretMode { CR_SERVO, STANDARD_SERVO, NONE }
+
+    private final TurretMode mode;
+    private final Servo standardServo;   // only used when mode == STANDARD_SERVO
+    private final CRServo crServo;       // only used when mode == CR_SERVO
     private final AnalogInput turretEncoder;
     private final Telemetry telemetry;
 
@@ -54,14 +62,10 @@ public class TurretSubsystem extends SubsystemBase {
         this.telemetry = telemetry;
         this.pidController = new PIDController(kP, kI, kD);
 
-        Servo std = null;
-        try {
-            std = hardwareMap.get(Servo.class, "turretServo");
-            if (std instanceof ServoImplEx) {
-                ((ServoImplEx) std).setPwmRange(new PwmControl.PwmRange(500, 2500));
-            }
-        } catch (Exception ignored) {}
-
+        // ── Detect servo mode ────────────────────────────────────────────
+        // Try CRServo FIRST. If a CRServo is configured, we commit to CR
+        // mode and never touch the standard-servo path (avoids sending a
+        // positional PWM signal to a continuous-rotation servo).
         CRServo cr = null;
         try {
             cr = hardwareMap.get(CRServo.class, "turretServo");
@@ -72,9 +76,31 @@ public class TurretSubsystem extends SubsystemBase {
             enc = hardwareMap.get(AnalogInput.class, "turretEncoder");
         } catch (Exception ignored) {}
 
-        this.standardServo = std;
+        Servo std = null;
+        if (cr == null) {
+            // Only attempt standard servo when no CRServo was found
+            try {
+                std = hardwareMap.get(Servo.class, "turretServo");
+                if (std instanceof ServoImplEx) {
+                    ((ServoImplEx) std).setPwmRange(new PwmControl.PwmRange(500, 2500));
+                }
+            } catch (Exception ignored) {}
+        }
+
         this.crServo = cr;
         this.turretEncoder = enc;
+        this.standardServo = std;
+
+        // Lock mode once at construction time
+        if (crServo != null) {
+            mode = TurretMode.CR_SERVO;
+            // Safe init: stop the CRServo immediately so it doesn't spin on startup
+            crServo.setPower(0.0);
+        } else if (standardServo != null) {
+            mode = TurretMode.STANDARD_SERVO;
+        } else {
+            mode = TurretMode.NONE;
+        }
 
         // Initialize target angle to 100° (straight forward relative to robot)
         setAngle(INITIAL_ANGLE_DEG);
@@ -105,10 +131,28 @@ public class TurretSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
-        double voltage = (turretEncoder != null) ? turretEncoder.getVoltage() : 0.0;
+        switch (mode) {
+            case CR_SERVO:
+                periodicCRServo();
+                break;
+            case STANDARD_SERVO:
+                periodicStandardServo();
+                break;
+            default:
+                if (telemetry != null) {
+                    telemetry.addData(">> TURRET ERROR", "'turretServo' not found in Driver Station config!");
+                }
+                break;
+        }
+    }
 
-        // Use Closed-Loop PID only if turretEncoder is physically plugged in and reading > 0.05V
-        if (turretEncoder != null && voltage > 0.05 && crServo != null) {
+    // ─── CR Servo + Analog Encoder closed-loop control ───────────────────────
+    private void periodicCRServo() {
+        double voltage = (turretEncoder != null) ? turretEncoder.getVoltage() : 0.0;
+        boolean encoderHealthy = (turretEncoder != null && voltage > 0.05);
+
+        if (encoderHealthy) {
+            // Closed-loop PID control
             double currentAngle = getCurrentAngle();
             double pidOutput = pidController.calculate(currentAngle, currentTargetAngle);
 
@@ -131,27 +175,37 @@ public class TurretSubsystem extends SubsystemBase {
                 telemetry.addData("Turret Target Angle (deg)", "%.1f", currentTargetAngle);
                 telemetry.addData("Turret Servo Power", "%.2f", power);
             }
-        } else if (standardServo != null) {
-            // Standard Position Servo Mode (0.0 to 1.0 position)
-            double servoPos = currentTargetAngle / MAX_PHYSICAL_DEGREES;
-            if (INVERT_SERVO) {
-                servoPos = 1.0 - servoPos;
-            }
-            standardServo.setPosition(Math.max(0.0, Math.min(1.0, servoPos)));
+        } else {
+            // Encoder missing or reading low — STOP the CRServo to prevent
+            // uncontrolled spinning. NEVER fall through to standard servo mode.
+            crServo.setPower(0.0);
 
             if (telemetry != null) {
-                telemetry.addData("Turret Mode", "Standard Position Servo PWM");
+                telemetry.addData("Turret Mode", "CRServo SAFE STOP (encoder lost)");
+                telemetry.addData("Encoder Voltage (V)", "%.2f", voltage);
                 telemetry.addData("Turret Target Angle (deg)", "%.1f", currentTargetAngle);
-                telemetry.addData("Turret Servo Position", "%.3f", servoPos);
-                if (turretEncoder == null) {
-                    telemetry.addData(">> NOTICE", "Encoder 'turretEncoder' not found -> Using Standard Positional Servo");
-                } else {
-                    telemetry.addData(">> NOTICE", String.format("Encoder Voltage = %.2fV -> Using Standard Positional Servo", voltage));
-                }
+                telemetry.addData(">> WARNING", "Encoder signal lost — turret holding position");
             }
-        } else {
-            if (telemetry != null) {
-                telemetry.addData(">> TURRET ERROR", "'turretServo' not found in Driver Station config!");
+        }
+    }
+
+    // ─── Standard positional servo control ───────────────────────────────────
+    private void periodicStandardServo() {
+        double servoPos = currentTargetAngle / MAX_PHYSICAL_DEGREES;
+        if (INVERT_SERVO) {
+            servoPos = 1.0 - servoPos;
+        }
+        standardServo.setPosition(Math.max(0.0, Math.min(1.0, servoPos)));
+
+        if (telemetry != null) {
+            telemetry.addData("Turret Mode", "Standard Position Servo PWM");
+            telemetry.addData("Turret Target Angle (deg)", "%.1f", currentTargetAngle);
+            telemetry.addData("Turret Servo Position", "%.3f", servoPos);
+            if (turretEncoder == null) {
+                telemetry.addData(">> NOTICE", "Encoder 'turretEncoder' not found -> Using Standard Positional Servo");
+            } else {
+                double voltage = turretEncoder.getVoltage();
+                telemetry.addData(">> NOTICE", String.format("Encoder Voltage = %.2fV -> Using Standard Positional Servo", voltage));
             }
         }
     }
