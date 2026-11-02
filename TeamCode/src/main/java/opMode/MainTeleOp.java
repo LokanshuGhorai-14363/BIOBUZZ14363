@@ -1,10 +1,13 @@
 package opMode;
 
 import com.arcrobotics.ftclib.command.CommandOpMode;
+import com.arcrobotics.ftclib.command.InstantCommand;
+import com.arcrobotics.ftclib.command.RunCommand;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
@@ -21,32 +24,13 @@ import Subsystems.DriveSubsystem;
 import Subsystems.IntakeSubsystem;
 import Subsystems.TransferSubsystem;
 import Subsystems.TurretShooterSubsystem;
+import Subsystems.TurretSubsystem;
+import Subsystems.VisionSubsystem;
+import Subsystems.VisionSubsystem.Alliance;
 
 /**
  * MainTeleOp — primary TeleOp OpMode using the FTCLib Command-based framework.
- *
- * <h3>Control Mapping (Gamepad 1)</h3>
- * <table>
- *   <tr><th>Input</th><th>Action</th></tr>
- *   <tr><td>Left Stick Y</td><td>Drive forward / backward</td></tr>
- *   <tr><td>Left Stick X</td><td>Strafe left / right</td></tr>
- *   <tr><td>Right Stick X</td><td>Rotate</td></tr>
- *   <tr><td>Left Trigger (analog)</td><td>Intake IN + Transfer (proportional speed)</td></tr>
- *   <tr><td>Left Bumper</td><td>Intake OUT + Transfer (manual reverse)</td></tr>
- *   <tr><td>X Button</td><td>Manual Purge sequence (1-second reverse spin)</td></tr>
- *   <tr><td>A Button</td><td>Manual Transfer (goBILDA 1150 RPM motor)</td></tr>
- *   <tr><td>Right Trigger (analog)</td><td>Turret Shooter START (PID control)</td></tr>
- *   <tr><td>Right Bumper</td><td>Turret Shooter STOP</td></tr>
- * </table>
- *
- * <h3>Autonomous Background Logic</h3>
- * <ul>
- *   <li>{@link IntakeSubsystem}: Controls intake and transfer motors proportionally based on trigger pressure.</li>
- *   <li>{@link TransferSubsystem}: Handles timed transfer sequence into scoring mechanism.</li>
- * </ul>
- *
- * <h3>Performance</h3>
- * REV Control Hub LynxModule bulk caching is enabled for optimized cycle times.
+ * Features automated Pinpoint odometry turret tracking to alliance goals while driving.
  */
 @TeleOp(name = "Main TeleOp", group = "Competition")
 public class MainTeleOp extends CommandOpMode {
@@ -56,12 +40,17 @@ public class MainTeleOp extends CommandOpMode {
     private IntakeSubsystem       intakeSubsystem;
     private TransferSubsystem     transferSubsystem;
     private TurretShooterSubsystem turretShooterSubsystem;
+    private TurretSubsystem       turretSubsystem;
+    private VisionSubsystem       visionSubsystem;
 
     // ── Gamepad wrapper ───────────────────────────────────────────────────────
     private GamepadEx driverGamepad;
 
     // ── LynxModule bulk reading ───────────────────────────────────────────────
     private List<LynxModule> allHubs;
+
+    // Default to Red Alliance for Main TeleOp (change to BLUE if on Blue alliance)
+    private Alliance alliance = Alliance.RED;
 
     @Override
     public void initialize() {
@@ -76,16 +65,22 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         // 2. Instantiate subsystems
         // ────────────────────────────────────────────────────────────────────
-        driveSubsystem        = new DriveSubsystem(hardwareMap, telemetry);
-        intakeSubsystem       = new IntakeSubsystem(hardwareMap, telemetry);
-        transferSubsystem     = new TransferSubsystem(hardwareMap, telemetry);
+        driveSubsystem         = new DriveSubsystem(hardwareMap, telemetry);
+        intakeSubsystem        = new IntakeSubsystem(hardwareMap, telemetry);
+        transferSubsystem      = new TransferSubsystem(hardwareMap, telemetry);
         turretShooterSubsystem = new TurretShooterSubsystem(hardwareMap, telemetry);
+        turretSubsystem        = new TurretSubsystem(hardwareMap, telemetry);
+        visionSubsystem        = new VisionSubsystem(hardwareMap, telemetry, turretSubsystem, driveSubsystem);
 
         // ────────────────────────────────────────────────────────────────────
         // 3. Register subsystems with the scheduler
-        //    (DriveSubsystem is registered implicitly via setDefaultCommand)
         // ────────────────────────────────────────────────────────────────────
-        register(intakeSubsystem, transferSubsystem, turretShooterSubsystem);
+        register(intakeSubsystem, transferSubsystem, turretShooterSubsystem, turretSubsystem, visionSubsystem);
+
+        // Configure alliance and initial robot field pose
+        visionSubsystem.setAlliance(alliance);
+        Pose startPose = visionSubsystem.getStartPose(alliance);
+        driveSubsystem.setPose(startPose);
 
         // ────────────────────────────────────────────────────────────────────
         // 4. Wrap gamepad
@@ -95,11 +90,21 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         // 5. Default commands
         // ────────────────────────────────────────────────────────────────────
+        // Default Drive Command
         driveSubsystem.setDefaultCommand(new DefaultDriveCommand(
                 driveSubsystem,
-                () -> -driverGamepad.getLeftY(),   // forward (negate for FTC convention)
+                () -> -driverGamepad.getLeftY(),   // forward
                 () ->  driverGamepad.getLeftX(),   // strafe
                 () ->  driverGamepad.getRightX()   // rotation
+        ));
+
+        // Default Turret Command — Automatically tracks alliance goal using Pinpoint Odometry
+        turretSubsystem.setDefaultCommand(new RunCommand(
+                () -> {
+                    double targetAngle = visionSubsystem.calculateOdometryTurretAngle();
+                    turretSubsystem.setAngle(targetAngle);
+                },
+                turretSubsystem
         ));
 
         // ────────────────────────────────────────────────────────────────────
@@ -107,7 +112,8 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         configureBindings();
 
-        telemetry.addLine(">> Main TeleOp Initialized.");
+        telemetry.addLine(">> Main TeleOp Initialized with Automated Turret Goal Tracking.");
+        telemetry.addData(">> Alliance", alliance);
         telemetry.update();
     }
 
@@ -136,11 +142,22 @@ public class MainTeleOp extends CommandOpMode {
         new GamepadButton(driverGamepad, GamepadKeys.Button.A)
                 .whenPressed(transferSubsystem::transfer);
 
-        // ── Turret Shooter START — Right Trigger (analog > 0.05) ──────────
-        new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05)
-                .whenActive(new ShootStartCommand(turretShooterSubsystem));
+        // ── Turret Shooter START / Spin — Right Trigger (analog > 0.05) ───
+        new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
+                       || gamepad1.right_trigger > 0.05)
+                .whileActiveContinuous(
+                        new RunCommand(
+                                () -> turretShooterSubsystem.spinWithTrigger(
+                                        Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger)
+                                ),
+                                turretShooterSubsystem
+                        )
+                )
+                .whenInactive(
+                        new InstantCommand(turretShooterSubsystem::stop, turretShooterSubsystem)
+                );
 
-        // ── Turret Shooter STOP — Right Bumper ────────────────────────────
+        // ── Turret Shooter Manual STOP — Right Bumper ─────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
                 .whenPressed(new ShootStopCommand(turretShooterSubsystem));
     }

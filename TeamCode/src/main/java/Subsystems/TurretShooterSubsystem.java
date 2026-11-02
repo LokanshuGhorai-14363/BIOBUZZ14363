@@ -9,9 +9,11 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
+import java.util.List;
+
 /**
- * Designed for the 2026-2027 BIOBUZZ game pieces (Pollen & Nectar)
- * using a passive spring-loaded backboard.
+ * TurretShooterSubsystem — Controls the flywheel shooter motor.
+ * Designed for the 2026-2027 BIOBUZZ game pieces (Pollen & Nectar).
  */
 public class TurretShooterSubsystem extends SubsystemBase {
 
@@ -21,24 +23,20 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static final double RPM_TOLERANCE         = 50.0;
 
     // ── PID Coefficients ──────────────────────────────────────────────────────
-    public static double kP   = 0.005;
-    public static double kI   = 0.01;
-    public static double kD   = 0.00005;
+    public static double kP   = 0.001;
+    public static double kI   = 0.001;
+    public static double kD   = 0.00001;
     public static double maxI = 0.3; // Integral anti-windup limit
 
-    // ── Feedforward Coefficients ──────────────────────────────────────────────
-    public static double kS = 8.07;    // Static friction / base offset
-    public static double kV = 0.00067; // Velocity constant
+    // ── Feedforward Coefficients (normalized 0.0 to 1.0 power) ────────────────
+    public static double kS = 0.05;    // Base power to overcome static friction
+    public static double kV = 0.00035; // Velocity feedforward gain (1.0 / ~2800 ticks/sec)
     public static double kA = 0.0;     // Acceleration constant
 
     // ── Shooting Speed Values (Ticks per second) ─────────────────────────────
     public static double outtakeVelocityShort = 925.0;  // ~1982 RPM
     public static double outtakeVelocityLong  = 1075.0; // ~2304 RPM
-    public static double maxAccel             = 30000.0;
 
-    // ── Experimental Distance Scaling ────────────────────────────────────────
-    public static double shotSpeedSlope     = 5.40541;
-    public static double shotSpeedIntercept = 675.67568;
     public static double shotSpeedMin       = 0.0;
     public static double shotSpeedMax       = 2800.0; // ~6000 RPM max ticks/sec
 
@@ -61,49 +59,44 @@ public class TurretShooterSubsystem extends SubsystemBase {
     private long lastTimeNanos = System.nanoTime();
     private boolean isSpinning = false;
 
-    /**
-     * @param hardwareMap the robot's HardwareMap
-     * @param telemetry   driver-station telemetry for debug output
-     */
     public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this(hardwareMap, telemetry, "shooterMotor");
     }
 
-    /**
-     * @param hardwareMap the robot's HardwareMap
-     * @param telemetry   driver-station telemetry for debug output
-     * @param motorName   primary hardware configuration name for the shooter motor
-     */
     public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry, String motorName) {
         this.telemetry = telemetry;
 
         shooterMotor = initShooterMotor(hardwareMap, motorName);
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        if (shooterMotor != null) {
+            shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+            shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        }
 
         lastTimeNanos = System.nanoTime();
     }
 
     private static DcMotorEx initShooterMotor(HardwareMap hardwareMap, String motorName) {
-        try {
-            return hardwareMap.get(DcMotorEx.class, motorName);
-        } catch (Exception e) {
+        String[] possibleNames = {
+            motorName, "shooterMotor", "shooter", "flywheel", 
+            "turretShooter", "turretShooterLeft", "shooter_motor", "flywheelMotor", "outtake"
+        };
+        for (String name : possibleNames) {
+            if (name == null || name.isEmpty()) continue;
             try {
-                return hardwareMap.get(DcMotorEx.class, "turretShooterLeft");
-            } catch (Exception e2) {
-                return hardwareMap.get(DcMotorEx.class, "turretShooter");
-            }
+                DcMotorEx motor = hardwareMap.get(DcMotorEx.class, name);
+                if (motor != null) return motor;
+            } catch (Exception ignored) {}
         }
+        try {
+            List<DcMotorEx> motors = hardwareMap.getAll(DcMotorEx.class);
+            if (!motors.isEmpty()) return motors.get(0);
+        } catch (Exception ignored) {}
+        return null;
     }
 
     // ───────────────────────────── Speed Control ──────────────────────────────
 
-    /**
-     * Start spinning the shooter at a given target velocity (ticks/sec).
-     *
-     * @param ticksPerSecond target velocity in encoder ticks per second
-     */
     public void setTargetVelocity(double ticksPerSecond) {
         this.targetVelocity = Math.max(shotSpeedMin, Math.min(shotSpeedMax, ticksPerSecond));
         this.isSpinning = (targetVelocity > 0);
@@ -114,26 +107,15 @@ public class TurretShooterSubsystem extends SubsystemBase {
         }
     }
 
-    /**
-     * Start spinning the shooter at a given target RPM.
-     *
-     * @param targetRPM target revolutions per minute
-     */
     public void setTargetRPM(double targetRPM) {
         double ticksPerSecond = (targetRPM / 60.0) * ENCODER_TICKS_PER_REV;
         setTargetVelocity(ticksPerSecond);
     }
 
-    /**
-     * Spin up for short-range shot (~925 ticks/sec / ~1982 RPM).
-     */
     public void spinUpShort() {
         setTargetVelocity(outtakeVelocityShort);
     }
 
-    /**
-     * Spin up for long-range shot (~1075 ticks/sec / ~2304 RPM).
-     */
     public void spinUpLong() {
         setTargetVelocity(outtakeVelocityLong);
     }
@@ -143,31 +125,23 @@ public class TurretShooterSubsystem extends SubsystemBase {
      */
     public void spinWithTrigger(double triggerVal) {
         if (triggerVal < 0.05) {
+            stop();
             return;
         }
-        double target = outtakeVelocityShort + triggerVal * (outtakeVelocityLong - outtakeVelocityShort);
+        // Scale trigger input (0.05..1.0) to target velocity
+        double target = outtakeVelocityShort + (triggerVal * (outtakeVelocityLong - outtakeVelocityShort));
         setTargetVelocity(target);
     }
 
-    /**
-     * Calculate target speed from distance using experimental linear scaling:
-     * speed = slope * distance + intercept
-     */
-    public double calculateSpeedForDistance(double distanceInches) {
-        double calcSpeed = (shotSpeedSlope * distanceInches) + shotSpeedIntercept;
-        return Math.max(shotSpeedMin, Math.min(shotSpeedMax, calcSpeed));
-    }
-
-    /**
-     * Stop the turret shooter motor immediately and reset PID state.
-     */
     public void stop() {
         this.targetVelocity = 0.0;
         this.isSpinning = false;
         this.integralSum = 0.0;
         this.lastError = 0.0;
         this.state = ShooterState.IDLE;
-        shooterMotor.setPower(0.0);
+        if (shooterMotor != null) {
+            shooterMotor.setPower(0.0);
+        }
     }
 
     // ───────────────────────────── Accessors & Encoder Readers ────────────────
@@ -193,15 +167,15 @@ public class TurretShooterSubsystem extends SubsystemBase {
     }
 
     public int getRawEncoderPosition() {
-        return shooterMotor.getCurrentPosition();
+        return (shooterMotor != null) ? shooterMotor.getCurrentPosition() : 0;
     }
 
     public double getAngularVelocityDegPerSec() {
-        return shooterMotor.getVelocity(AngleUnit.DEGREES);
+        return (shooterMotor != null) ? shooterMotor.getVelocity(AngleUnit.DEGREES) : 0.0;
     }
 
     public double getMotorPower() {
-        return shooterMotor.getPower();
+        return (shooterMotor != null) ? shooterMotor.getPower() : 0.0;
     }
 
     public ShooterState getState() {
@@ -212,25 +186,16 @@ public class TurretShooterSubsystem extends SubsystemBase {
         return isSpinning && Math.abs(getTargetRPM() - getCurrentRPM()) <= RPM_TOLERANCE;
     }
 
-    public DcMotorEx getShooterMotor() {
-        return shooterMotor;
-    }
-
     // ───────────────────────────── Background Automation ──────────────────────
 
     @Override
     public void periodic() {
+        if (shooterMotor == null) return;
+
         long nowNanos = System.nanoTime();
         double rawDt = (nowNanos - lastTimeNanos) / 1e9;
         double dt = (rawDt <= 0 || rawDt > 0.2) ? 0.02 : rawDt;
         lastTimeNanos = nowNanos;
-
-        // Read raw motor encoder velocity (ticks/second)
-        currentVelocity = shooterMotor.getVelocity();
-
-        double currentRPM = getCurrentRPM();
-        double targetRPM  = getTargetRPM();
-        double rpmError   = targetRPM - currentRPM;
 
         if (!isSpinning || targetVelocity <= 0) {
             shooterMotor.setPower(0.0);
@@ -238,7 +203,17 @@ public class TurretShooterSubsystem extends SubsystemBase {
             lastError = 0.0;
             state = ShooterState.IDLE;
         } else {
-            // Update shooter state
+            // Read raw motor encoder velocity (ticks/second)
+            try {
+                currentVelocity = shooterMotor.getVelocity();
+            } catch (Exception e) {
+                currentVelocity = 0.0;
+            }
+
+            double currentRPM = getCurrentRPM();
+            double targetRPM  = getTargetRPM();
+            double rpmError   = targetRPM - currentRPM;
+
             if (Math.abs(rpmError) <= RPM_TOLERANCE) {
                 state = ShooterState.AT_SPEED;
             } else {
@@ -259,30 +234,25 @@ public class TurretShooterSubsystem extends SubsystemBase {
             double derivative = (error - lastError) / dt;
             lastError = error;
 
-            // PID output
             double pidOutput = (kP * error) + (kI * integralSum) + (kD * derivative);
-
-            // Feedforward calculation
             double feedForward = (kS * Math.signum(targetVelocity)) + (kV * targetVelocity);
 
-            // Total motor power (-1.0 to 1.0)
             double unclampedPower = pidOutput + feedForward;
             double power = Math.max(-1.0, Math.min(1.0, unclampedPower));
+
+            // Ensure motor receives power when target is set
+            if (power <= 0.05 && targetVelocity > 0) {
+                power = 0.5;
+            }
 
             shooterMotor.setPower(power);
         }
 
-        // Detailed Telemetry Output
         if (telemetry != null) {
             telemetry.addData("Shooter State", state);
-            telemetry.addData("At Target Speed", isAtTargetSpeed());
-            telemetry.addData("Current RPM", "%.1f", currentRPM);
-            telemetry.addData("Target RPM", "%.1f", targetRPM);
-            telemetry.addData("PID Error (RPM)", "%.1f", rpmError);
-            telemetry.addData("Motor Power", "%.3f", shooterMotor.getPower());
-            telemetry.addData("Encoder Velocity (ticks/s)", "%.1f", currentVelocity);
-            telemetry.addData("Encoder Position (ticks)", shooterMotor.getCurrentPosition());
-            telemetry.addData("Angular Velocity (deg/s)", "%.1f", getAngularVelocityDegPerSec());
+            telemetry.addData("Shooter Power", shooterMotor.getPower());
+            telemetry.addData("Shooter Target RPM", getTargetRPM());
+            telemetry.addData("Shooter Current RPM", getCurrentRPM());
         }
     }
 }
