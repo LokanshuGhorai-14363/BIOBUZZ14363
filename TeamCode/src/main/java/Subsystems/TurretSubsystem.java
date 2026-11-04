@@ -11,20 +11,37 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 /**
  * TurretSubsystem — Standard Positional Servo Control for Turret Mechanism.
  *
- * Hardware: 1 Standard Servo ("turretServo") on Servo Port 0.
- * PWM Range: 500 µs to 2500 µs (maps to 0° - 355° physical range).
- * Sweep Limits: 0° to 200° (100° is straight forward center, allowing 100° Left and 100° Right).
+ * Hardware: 1 Axon MAX Mark 2 Servo ("turretServo") on Servo Port 0.
+ * PWM Range: 500 µs to 2500 µs.
+ * Center position: 0.50 (1500 µs) = 100° (straight forward).
  */
 public class TurretSubsystem extends SubsystemBase {
 
     private final Servo turretServo;
     private final Telemetry telemetry;
 
-    // Constants for physical servo limits and scaling
-    public static final double MAX_PHYSICAL_DEGREES = 355.0;
+    // Constants for physical turret sweep limits
     public static final double MIN_ANGLE_DEG = 0.0;     // 100° Left of center
     public static final double MAX_ANGLE_DEG = 200.0;   // 100° Right of center
     public static final double INITIAL_ANGLE_DEG = 100.0; // Straight forward center
+
+    // Axon MAX Mark 2 Servo physical rotation range across 500µs - 2500µs
+    public static double SERVO_PHYSICAL_RANGE_DEG = 355.0;
+
+    /**
+     * TURRET GEAR RATIO = (Turret Gear Teeth / Servo Gear Teeth)
+     * Example: 60-tooth turret ring gear driven by a 20-tooth servo gear -> Ratio = 3.0.
+     * If direct drive (1:1), set to 1.0.
+     */
+    public static double TURRET_GEAR_RATIO = 1.0;
+
+    /**
+     * SERVO CENTER POSITION (0.0 to 1.0)
+     * The PWM position corresponding to 100° (straight forward center).
+     * Adjust this value so that on initialization, the servo holds the turret
+     * straight forward without jumping to the left or right!
+     */
+    public static double SERVO_CENTER_POSITION = 0.50;
 
     // Standard Axon MAX Mark 2 Servo PWM limits (in microseconds)
     public static final int PWM_MIN_US = 500;
@@ -62,12 +79,23 @@ public class TurretSubsystem extends SubsystemBase {
 
     /**
      * Internal helper to calculate and output the PWM position to the servo.
+     * Maps 100° (center) to SERVO_CENTER_POSITION.
+     * Accounts for turret gear ratio reduction.
      */
     private void updateServoPosition() {
-        double servoPos = currentTargetAngle / MAX_PHYSICAL_DEGREES;
+        // Degrees relative to center (100°)
+        double deltaTurretDeg = currentTargetAngle - INITIAL_ANGLE_DEG;
+
+        // Account for gear ratio (e.g., if turret gear is 3x larger than servo gear, servo must turn 3x more)
+        double deltaServoDeg = deltaTurretDeg * TURRET_GEAR_RATIO;
+
         if (INVERT_SERVO) {
-            servoPos = 1.0 - servoPos;
+            deltaServoDeg = -deltaServoDeg;
         }
+
+        // Add offset relative to SERVO_CENTER_POSITION
+        double servoPos = SERVO_CENTER_POSITION + (deltaServoDeg / SERVO_PHYSICAL_RANGE_DEG);
+
         turretServo.setPosition(Math.max(0.0, Math.min(1.0, servoPos)));
     }
 

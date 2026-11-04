@@ -9,8 +9,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
-import java.util.List;
-
 /**
  * TurretShooterSubsystem — Controls the flywheel shooter motor.
  * Designed for the 2026-2027 BIOBUZZ game pieces (Pollen & Nectar).
@@ -66,7 +64,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry, String motorName) {
         this.telemetry = telemetry;
 
-        shooterMotor = initShooterMotor(hardwareMap, motorName);
+        shooterMotor = hardwareMap.get(DcMotorEx.class, motorName);
         if (shooterMotor != null) {
             shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -74,25 +72,6 @@ public class TurretShooterSubsystem extends SubsystemBase {
         }
 
         lastTimeNanos = System.nanoTime();
-    }
-
-    private static DcMotorEx initShooterMotor(HardwareMap hardwareMap, String motorName) {
-        String[] possibleNames = {
-            motorName, "shooterMotor", "shooter", "flywheel", 
-            "turretShooter", "turretShooterLeft", "shooter_motor", "flywheelMotor", "outtake"
-        };
-        for (String name : possibleNames) {
-            if (name == null || name.isEmpty()) continue;
-            try {
-                DcMotorEx motor = hardwareMap.get(DcMotorEx.class, name);
-                if (motor != null) return motor;
-            } catch (Exception ignored) {}
-        }
-        try {
-            List<DcMotorEx> motors = hardwareMap.getAll(DcMotorEx.class);
-            if (!motors.isEmpty()) return motors.get(0);
-        } catch (Exception ignored) {}
-        return null;
     }
 
     // ───────────────────────────── Speed Control ──────────────────────────────
