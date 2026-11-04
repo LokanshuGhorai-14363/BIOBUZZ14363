@@ -57,9 +57,6 @@ public class VisionSubsystem extends SubsystemBase {
     // Pre-allocated array to prevent object creation in active loops
     private final double[] activeTargetGoal = new double[2];
 
-    // Throttle telemetry updates to save loop time
-    private long lastTelemetryTime = 0;
-
     public VisionSubsystem(HardwareMap hardwareMap, Telemetry telemetry, 
                            TurretSubsystem turretSubsystem, DriveSubsystem driveSubsystem) {
         this.telemetry = telemetry;
@@ -85,22 +82,18 @@ public class VisionSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
-        if (System.currentTimeMillis() - lastTelemetryTime > 100) {
-            lastTelemetryTime = System.currentTimeMillis();
+        Pose robotPose = driveSubsystem.getPose();
+        updateTargetGoalCoordinates();
+        double distance = Math.hypot(activeTargetGoal[0] - robotPose.x(), activeTargetGoal[1] - robotPose.y());
+        double turretAngle = calculateOdometryTurretAngle();
 
-            Pose robotPose = driveSubsystem.getPose();
-            updateTargetGoalCoordinates();
-            double distance = Math.hypot(activeTargetGoal[0] - robotPose.x(), activeTargetGoal[1] - robotPose.y());
-            double turretAngle = calculateOdometryTurretAngle();
-
-            if (telemetry != null) {
-                telemetry.addData("Alliance", currentAlliance);
-                telemetry.addData("Robot Pose", String.format("(%.1f, %.1f, %.1f°)", 
-                        robotPose.x(), robotPose.y(), Math.toDegrees(robotPose.heading())));
-                telemetry.addData("Target Goal", "( " + activeTargetGoal[0] + "in, " + activeTargetGoal[1] + "in )");
-                telemetry.addData("Goal Distance (in)", "%.1f", distance);
-                telemetry.addData("Target Turret Angle (deg)", "%.1f", turretAngle);
-            }
+        if (telemetry != null) {
+            telemetry.addData("Alliance", currentAlliance);
+            telemetry.addData("Robot Pose", String.format("(%.1f, %.1f, %.1f°)", 
+                    robotPose.x(), robotPose.y(), Math.toDegrees(robotPose.heading())));
+            telemetry.addData("Target Goal", "( " + activeTargetGoal[0] + "in, " + activeTargetGoal[1] + "in )");
+            telemetry.addData("Goal Distance (in)", "%.1f", distance);
+            telemetry.addData("Target Turret Angle (deg)", "%.1f", turretAngle);
         }
     }
 
