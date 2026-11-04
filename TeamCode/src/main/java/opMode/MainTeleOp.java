@@ -1,7 +1,6 @@
 package opMode;
 
 import com.arcrobotics.ftclib.command.CommandOpMode;
-import com.arcrobotics.ftclib.command.RunCommand;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
@@ -13,12 +12,12 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import java.util.List;
 
 import Commands.AutoEjectCommand;
-import Commands.DefaultDriveCommand;
 import Commands.FieldCentricDriveCommand;
 import Commands.IntakeInCommand;
 import Commands.IntakeOutCommand;
 import Commands.ShootStartCommand;
 import Commands.ShootStopCommand;
+import Commands.TurretTrackGoalCommand;
 
 import Subsystems.DriveSubsystem;
 import Subsystems.IntakeSubsystem;
@@ -78,7 +77,7 @@ public class MainTeleOp extends CommandOpMode {
         // ────────────────────────────────────────────────────────────────────
         // 3. Register subsystems with the scheduler
         // ────────────────────────────────────────────────────────────────────
-        register(intakeSubsystem, transferSubsystem, turretShooterSubsystem, turretSubsystem, visionSubsystem);
+        register(driveSubsystem, intakeSubsystem, transferSubsystem, turretShooterSubsystem, turretSubsystem, visionSubsystem);
 
         // Configure alliance and initial robot field pose
         visionSubsystem.setAlliance(alliance);
@@ -102,12 +101,9 @@ public class MainTeleOp extends CommandOpMode {
         ));
 
         // Default Turret Command — Automatically tracks alliance goal using Pinpoint Odometry
-        turretSubsystem.setDefaultCommand(new RunCommand(
-                () -> {
-                    double targetAngle = visionSubsystem.calculateOdometryTurretAngle();
-                    turretSubsystem.setAngle(targetAngle);
-                },
-                turretSubsystem
+        turretSubsystem.setDefaultCommand(new TurretTrackGoalCommand(
+                turretSubsystem,
+                visionSubsystem
         ));
 
         // ────────────────────────────────────────────────────────────────────

@@ -205,7 +205,8 @@ public class TurretShooterSubsystem extends SubsystemBase {
         } else {
             // Read raw motor encoder velocity (ticks/second)
             try {
-                currentVelocity = shooterMotor.getVelocity();
+                double vel = shooterMotor.getVelocity();
+                currentVelocity = Double.isNaN(vel) ? 0.0 : vel;
             } catch (Exception e) {
                 currentVelocity = 0.0;
             }
@@ -240,8 +241,8 @@ public class TurretShooterSubsystem extends SubsystemBase {
             double unclampedPower = pidOutput + feedForward;
             double power = Math.max(-1.0, Math.min(1.0, unclampedPower));
 
-            // Ensure motor receives power when target is set
-            if (power <= 0.05 && targetVelocity > 0) {
+            // Fallback: Ensure motor receives power when target is set even if calculation yields low/NaN power
+            if (Double.isNaN(power) || (power <= 0.05 && targetVelocity > 0)) {
                 power = 0.5;
             }
 
@@ -249,8 +250,10 @@ public class TurretShooterSubsystem extends SubsystemBase {
         }
 
         if (telemetry != null) {
+            telemetry.addData("Shooter Motor Found", (shooterMotor != null));
+            telemetry.addData("Shooter Spinning Flag", isSpinning);
             telemetry.addData("Shooter State", state);
-            telemetry.addData("Shooter Power", shooterMotor.getPower());
+            telemetry.addData("Shooter Power", (shooterMotor != null) ? shooterMotor.getPower() : 0.0);
             telemetry.addData("Shooter Target RPM", getTargetRPM());
             telemetry.addData("Shooter Current RPM", getCurrentRPM());
         }

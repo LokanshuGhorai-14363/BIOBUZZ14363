@@ -130,14 +130,11 @@ public class VisionSubsystem extends SubsystemBase {
         // Field heading angle towards the goal (in radians)
         double globalGoalAngle = Math.atan2(dy, dx);
 
-        // Relative angle from robot's heading to goal
+        // Relative angle from robot's heading to goal (in radians)
         double relativeAngleRad = globalGoalAngle - robotPose.heading();
 
-        // Normalize to [-PI, PI] efficiently
-        relativeAngleRad = (relativeAngleRad + Math.PI) % (2 * Math.PI) - Math.PI;
-        if (relativeAngleRad < -Math.PI) {
-            relativeAngleRad += 2 * Math.PI;
-        }
+        // Normalize to [-PI, PI] using atan2(sin, cos) for robust wrapping
+        relativeAngleRad = Math.atan2(Math.sin(relativeAngleRad), Math.cos(relativeAngleRad));
 
         double relativeAngleDeg = Math.toDegrees(relativeAngleRad);
 
@@ -149,12 +146,6 @@ public class VisionSubsystem extends SubsystemBase {
         double commandedAngle = relativeAngleDeg + TURRET_ZERO_OFFSET_DEG;
 
         // Clamp to physical limits [0, 200]
-        if (commandedAngle < TurretSubsystem.MIN_ANGLE_DEG) {
-            commandedAngle = TurretSubsystem.MIN_ANGLE_DEG;
-        } else if (commandedAngle > TurretSubsystem.MAX_ANGLE_DEG) {
-            commandedAngle = TurretSubsystem.MAX_ANGLE_DEG;
-        }
-
-        return commandedAngle;
+        return Math.max(TurretSubsystem.MIN_ANGLE_DEG, Math.min(TurretSubsystem.MAX_ANGLE_DEG, commandedAngle));
     }
 }

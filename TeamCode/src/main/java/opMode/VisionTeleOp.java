@@ -1,7 +1,6 @@
 package opMode;
 
 import com.arcrobotics.ftclib.command.CommandOpMode;
-import com.arcrobotics.ftclib.command.RunCommand;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
@@ -12,6 +11,7 @@ import java.util.List;
 
 import Commands.DefaultDriveCommand;
 import Commands.RelocalizeCommand;
+import Commands.TurretTrackGoalCommand;
 import Subsystems.DriveSubsystem;
 import Subsystems.TurretSubsystem;
 import Subsystems.VisionSubsystem;
@@ -70,12 +70,9 @@ public abstract class VisionTeleOp extends CommandOpMode {
         ));
 
         // 5. Default Turret Command (Auto-tracking Goal using Pinpoint Odometry)
-        turretSubsystem.setDefaultCommand(new RunCommand(
-                () -> {
-                    double targetAngle = visionSubsystem.calculateOdometryTurretAngle();
-                    turretSubsystem.setAngle(targetAngle);
-                },
-                turretSubsystem
+        turretSubsystem.setDefaultCommand(new TurretTrackGoalCommand(
+                turretSubsystem,
+                visionSubsystem
         ));
 
         // 6. Button Bindings

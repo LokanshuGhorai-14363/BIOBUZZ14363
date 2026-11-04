@@ -57,12 +57,17 @@ public class TurretSubsystem extends SubsystemBase {
      */
     public void setAngle(double degrees) {
         currentTargetAngle = Math.max(MIN_ANGLE_DEG, Math.min(MAX_ANGLE_DEG, degrees));
-        
+        updateServoPosition();
+    }
+
+    /**
+     * Internal helper to calculate and output the PWM position to the servo.
+     */
+    private void updateServoPosition() {
         double servoPos = currentTargetAngle / MAX_PHYSICAL_DEGREES;
         if (INVERT_SERVO) {
             servoPos = 1.0 - servoPos;
         }
-        
         turretServo.setPosition(Math.max(0.0, Math.min(1.0, servoPos)));
     }
 
@@ -75,11 +80,7 @@ public class TurretSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
-        double servoPos = currentTargetAngle / MAX_PHYSICAL_DEGREES;
-        if (INVERT_SERVO) {
-            servoPos = 1.0 - servoPos;
-        }
-        turretServo.setPosition(Math.max(0.0, Math.min(1.0, servoPos)));
+        updateServoPosition();
 
         if (telemetry != null) {
             telemetry.addData("Turret Mode", "Standard Position Servo PWM");
