@@ -32,7 +32,7 @@ public class IntakeInCommand extends CommandBase {
         this.transferSubsystem = transferSubsystem;
         this.powerSupplier     = powerSupplier;
 
-        addRequirements(intakeSubsystem);
+        addRequirements(intakeSubsystem, transferSubsystem);
     }
 
     @Override

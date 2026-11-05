@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import com.pedropathing.math.Pose;
+import util.HiveGoalTracker;
 
 /**
  * VisionSubsystem — Pinpoint Odometry goal aiming and turret tracking.
@@ -26,6 +27,7 @@ public class VisionSubsystem extends SubsystemBase {
 
     public enum Alliance { RED, BLUE }
     private Alliance currentAlliance = Alliance.RED;
+    private HiveGoalTracker goalTracker;
 
     // Field & Robot Dimensions (in inches)
     public static final double FIELD_SIZE_INCHES = 144.0;
@@ -39,37 +41,31 @@ public class VisionSubsystem extends SubsystemBase {
     public static final Pose BLUE_START_POSE = new Pose(80.75, 136.75, Math.toRadians(270.0));
     public static final Pose TOP_LEFT_RELOCALIZE_POSE = new Pose(12.0, 132.0, Math.toRadians(270.0));
 
-    // ──────────────────────── Goal Coordinates ──────────────────────────
-    public static final double RED_GOAL_X = 60.0;
-    public static final double RED_GOAL_Y1 = 60.0;
-    public static final double RED_GOAL_Y2 = 84.0;
-
-    public static final double BLUE_GOAL_X = 84.0;
-    public static final double BLUE_GOAL_Y1 = 60.0;
-    public static final double BLUE_GOAL_Y2 = 84.0;
-
     // Turret Zero / Center Offset in degrees (100.0° points straight forward relative to robot)
     public static double TURRET_ZERO_OFFSET_DEG = 100.0;
 
     // Invert turret rotation direction if servo turns CW instead of CCW
     public static boolean INVERT_TURRET_DIRECTION = false;
 
-    // Pre-allocated array to prevent object creation in active loops
-    private final double[] activeTargetGoal = new double[2];
-
     public VisionSubsystem(HardwareMap hardwareMap, Telemetry telemetry, 
                            TurretSubsystem turretSubsystem, DriveSubsystem driveSubsystem) {
         this.telemetry = telemetry;
         this.turretSubsystem = turretSubsystem;
         this.driveSubsystem = driveSubsystem;
+        this.goalTracker = new HiveGoalTracker(currentAlliance);
     }
 
     public void setAlliance(Alliance alliance) {
         this.currentAlliance = alliance;
+        this.goalTracker = new HiveGoalTracker(alliance);
     }
 
     public Alliance getAlliance() {
         return currentAlliance;
+    }
+
+    public HiveGoalTracker getGoalTracker() {
+        return goalTracker;
     }
 
     public Pose getStartPose(Alliance alliance) {
@@ -83,59 +79,35 @@ public class VisionSubsystem extends SubsystemBase {
     @Override
     public void periodic() {
         Pose robotPose = driveSubsystem.getPose();
-        updateTargetGoalCoordinates();
-        double distance = Math.hypot(activeTargetGoal[0] - robotPose.x(), activeTargetGoal[1] - robotPose.y());
+        goalTracker.update(robotPose);
         double turretAngle = calculateOdometryTurretAngle();
 
         if (telemetry != null) {
             telemetry.addData("Alliance", currentAlliance);
-            telemetry.addData("Robot Pose", String.format("(%.1f, %.1f, %.1f°)", 
+            telemetry.addData("Robot Pose", String.format("(%.1fin, %.1fin, %.1f°)", 
                     robotPose.x(), robotPose.y(), Math.toDegrees(robotPose.heading())));
-            telemetry.addData("Target Goal", "( " + activeTargetGoal[0] + "in, " + activeTargetGoal[1] + "in )");
-            telemetry.addData("Goal Distance (in)", "%.1f", distance);
+            telemetry.addData("Target Goal", String.format("%s (%.1fin, %.1fin)", 
+                    goalTracker.isTargetingFar() ? "FAR" : "NEAR",
+                    goalTracker.getTargetX(), goalTracker.getTargetY()));
+            telemetry.addData("Goal Distance (in)", "%.1f", goalTracker.getDistanceInches());
             telemetry.addData("Target Turret Angle (deg)", "%.1f", turretAngle);
         }
     }
 
     /**
-     * Determines the active target goal coordinates (X, Y in inches) based on alliance
-     * and the robot's current Y position, caching it in activeTargetGoal.
-     */
-    public void updateTargetGoalCoordinates() {
-        Pose robotPose = driveSubsystem.getPose();
-        double robotY = robotPose.y();
-
-        if (currentAlliance == Alliance.RED) {
-            activeTargetGoal[0] = RED_GOAL_X;
-            activeTargetGoal[1] = (robotY > FIELD_MID_Y_INCHES) ? RED_GOAL_Y2 : RED_GOAL_Y1;
-        } else {
-            activeTargetGoal[0] = BLUE_GOAL_X;
-            activeTargetGoal[1] = (robotY > FIELD_MID_Y_INCHES) ? BLUE_GOAL_Y2 : BLUE_GOAL_Y1;
-        }
-    }
-
-    /**
      * Calculates the required turret angle to aim directly at the active goal using
-     * Pinpoint Odometry (Pedro Pathing robot pose).
+     * Pinpoint Odometry (Pedro Pathing robot pose) synchronized with HiveGoalTracker.
      *
      * @return Required turret angle in degrees, clamped to [0, 200].
      */
     public double calculateOdometryTurretAngle() {
         Pose robotPose = driveSubsystem.getPose();
-        updateTargetGoalCoordinates();
 
-        double dx = activeTargetGoal[0] - robotPose.x();
-        double dy = activeTargetGoal[1] - robotPose.y();
-
-        // Field heading angle towards the goal (in radians)
-        double globalGoalAngle = Math.atan2(dy, dx);
+        // Target heading towards the goal in field frame
+        double globalGoalAngle = goalTracker.getTargetHeadingRad();
 
         // Relative angle from robot's heading to goal (in radians)
-        double relativeAngleRad = globalGoalAngle - robotPose.heading();
-
-        // Normalize to [-PI, PI] using atan2(sin, cos) for robust wrapping
-        relativeAngleRad = Math.atan2(Math.sin(relativeAngleRad), Math.cos(relativeAngleRad));
-
+        double relativeAngleRad = HiveGoalTracker.normalizeAngle(globalGoalAngle - robotPose.heading());
         double relativeAngleDeg = Math.toDegrees(relativeAngleRad);
 
         if (INVERT_TURRET_DIRECTION) {

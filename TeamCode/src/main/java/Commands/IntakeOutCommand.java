@@ -31,7 +31,7 @@ public class IntakeOutCommand extends CommandBase {
         this.transferSubsystem = transferSubsystem;
         this.powerSupplier     = powerSupplier;
 
-        addRequirements(intakeSubsystem);
+        addRequirements(intakeSubsystem, transferSubsystem);
     }
 
     /**
