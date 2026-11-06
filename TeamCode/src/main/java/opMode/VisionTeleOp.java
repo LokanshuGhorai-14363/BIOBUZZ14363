@@ -245,7 +245,13 @@ public abstract class VisionTeleOp extends CommandOpMode {
             hub.clearBulkCache();
         }
 
-        // 2. Dynamically update flywheel velocity while spinning if distance auto-scale is ON
+        // 2. Fetch fresh robot pose from driveSubsystem at the top of main periodic loop
+        Pose currentPose = driveSubsystem.getPose();
+        if (goalTracker != null) {
+            goalTracker.update(currentPose);
+        }
+
+        // 3. Dynamically update flywheel velocity while spinning if distance auto-scale is ON
         if (turretShooterSubsystem.isSpinning() && dynamicVelocityEnabled && goalTracker != null) {
             double dynamicVel = goalTracker.getSuggestedLaunchVelocity();
             if (dynamicVel >= TurretShooterSubsystem.outtakeVelocityShort) {
@@ -253,10 +259,10 @@ public abstract class VisionTeleOp extends CommandOpMode {
             }
         }
 
-        // 3. Run CommandScheduler (executes all subsystem periodic() and active commands)
+        // 4. Run CommandScheduler (executes all subsystem periodic() and active commands)
         super.run();
 
-        // 4. Telemetry diagnostics (Throttled to 10Hz to prevent string allocation & DS I/O loop lag)
+        // 5. Telemetry diagnostics (Throttled to 10Hz to prevent string allocation & DS I/O loop lag)
         if (telemetryTimer.milliseconds() >= TELEMETRY_INTERVAL_MS) {
             telemetryTimer.reset();
             emitTelemetry(driveSubsystem.getPose());
