@@ -64,8 +64,8 @@ public class ScoreCommand extends CommandBase {
         this.shooterSubsystem  = shooterSubsystem;
         this.goalTracker       = goalTracker;
 
-        // Only require intake to prevent intake commands from conflicting.
-        addRequirements(intakeSubsystem);
+        // Require all involved subsystems to prevent command conflicts
+        addRequirements(intakeSubsystem, transferSubsystem, shooterSubsystem);
     }
 
     @Override
@@ -75,8 +75,11 @@ public class ScoreCommand extends CommandBase {
 
         shooterWasPreSpinning = shooterSubsystem.isSpinning();
 
-        // Set flywheel to distance-scaled velocity immediately
-        double velocity = goalTracker.getSuggestedLaunchVelocity();
+        // Set flywheel to distance-scaled velocity immediately with safe fallback
+        double calculatedVelocity = (goalTracker != null) ? goalTracker.getSuggestedLaunchVelocity() : TurretShooterSubsystem.outtakeVelocityShort;
+        double velocity = (calculatedVelocity < TurretShooterSubsystem.outtakeVelocityShort || Double.isNaN(calculatedVelocity))
+                ? TurretShooterSubsystem.outtakeVelocityShort
+                : calculatedVelocity;
         shooterSubsystem.setTargetVelocity(velocity);
 
         // Stop intake to prevent double-feeding elements

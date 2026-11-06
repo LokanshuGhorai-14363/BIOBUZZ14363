@@ -16,6 +16,7 @@ import Commands.GoalTrackingDriveCommand;
 import Commands.IntakeInCommand;
 import Commands.IntakeOutCommand;
 import Commands.RelocalizeCommand;
+import Commands.ScoreCommand;
 import Commands.ShootStopCommand;
 import Commands.TurretTrackGoalCommand;
 
@@ -75,10 +76,10 @@ public abstract class VisionTeleOp extends CommandOpMode {
     protected List<LynxModule> allHubs;
     protected final ElapsedTime loopTimer = new ElapsedTime();
     protected final ElapsedTime telemetryTimer = new ElapsedTime();
-    private static final double TELEMETRY_INTERVAL_MS = 100.0; // 10 Hz Driver Station refresh
+    private static final double TELEMETRY_INTERVAL_MS = 10.0; // 50 Hz Driver Station refresh rate (fast telemetry)
 
     private final Alliance alliance;
-    private boolean autoAimEnabled = true;
+    private boolean autoAimEnabled = false; // Disabled by default so chassis won't fight manual driver rotation
     private boolean dynamicVelocityEnabled = true;
 
     public VisionTeleOp(Alliance alliance) {
@@ -87,6 +88,9 @@ public abstract class VisionTeleOp extends CommandOpMode {
 
     @Override
     public void initialize() {
+        // Fast telemetry update transmission interval (20ms = 50Hz)
+        telemetry.setMsTransmissionInterval(20);
+
         // 1. Manual LynxModule bulk caching (one bulk read per loop)
         allHubs = hardwareMap.getAll(LynxModule.class);
         for (LynxModule hub : allHubs) {
@@ -162,15 +166,21 @@ public abstract class VisionTeleOp extends CommandOpMode {
         new GamepadButton(driverGamepad, GamepadKeys.Button.LEFT_BUMPER)
                 .whileHeld(new IntakeOutCommand(intakeSubsystem, transferSubsystem));
 
-        // ── A Button: Spin up Flywheel Motor (100% Guaranteed Spin-Up / Toggle) ──
+        // ── A Button: Ultra-fast Score Macro (1-touch automated scoring) ──────
         new GamepadButton(driverGamepad, GamepadKeys.Button.A)
-                .whenPressed(this::toggleFlywheel);
+                .whenPressed(new ScoreCommand(intakeSubsystem, transferSubsystem, turretShooterSubsystem, goalTracker));
 
-        // ── Right Trigger: Feed elements into Flywheel Shooter while held ─────
+        // ── Right Trigger: Spin Up Shooter Flywheel & Feed elements while held ─
         new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
                        || gamepad1.right_trigger > 0.05)
                 .whileActiveContinuous(() -> {
                     double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger);
+
+                    // Guarantee shooter flywheel spins up when attempting to shoot
+                    if (!turretShooterSubsystem.isSpinning()) {
+                        spinUpFlywheelGuaranteed();
+                    }
+
                     double feedPower = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
                     transferSubsystem.spinProportional(feedPower);
                     intakeSubsystem.spinIn(feedPower);
@@ -210,7 +220,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 .whenPressed(() -> dynamicVelocityEnabled = !dynamicVelocityEnabled);
     }
 
-    private void toggleFlywheel() {
+    public void toggleFlywheel() {
         if (turretShooterSubsystem.isSpinning()) {
             turretShooterSubsystem.stop();
         } else {
@@ -219,14 +229,10 @@ public abstract class VisionTeleOp extends CommandOpMode {
     }
 
     private void spinUpFlywheelGuaranteed() {
-        double targetVelocity = 0.0;
-        if (dynamicVelocityEnabled && goalTracker != null) {
-            targetVelocity = goalTracker.getSuggestedLaunchVelocity();
-        }
-        // Guarantee spin-up: if velocity is <= 0 or NaN, fallback to safe short range velocity (~1982 RPM)
-        if (targetVelocity < TurretShooterSubsystem.outtakeVelocityShort || Double.isNaN(targetVelocity)) {
-            targetVelocity = TurretShooterSubsystem.outtakeVelocityShort;
-        }
+        double calcVel = (dynamicVelocityEnabled && goalTracker != null) ? goalTracker.getSuggestedLaunchVelocity() : 0.0;
+        double targetVelocity = (calcVel < TurretShooterSubsystem.outtakeVelocityShort || Double.isNaN(calcVel))
+                ? TurretShooterSubsystem.outtakeVelocityShort
+                : calcVel;
         turretShooterSubsystem.setTargetVelocity(targetVelocity);
     }
 

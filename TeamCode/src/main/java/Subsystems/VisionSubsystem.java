@@ -102,6 +102,7 @@ public class VisionSubsystem extends SubsystemBase {
      */
     public double calculateOdometryTurretAngle() {
         Pose robotPose = driveSubsystem.getPose();
+        goalTracker.update(robotPose);
 
         // Target heading towards the goal in field frame
         double globalGoalAngle = goalTracker.getTargetHeadingRad();

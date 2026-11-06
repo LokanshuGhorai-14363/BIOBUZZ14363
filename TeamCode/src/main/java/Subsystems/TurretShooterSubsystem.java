@@ -32,8 +32,8 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static double kA = 0.0;     // Acceleration constant
 
     // ── Shooting Speed Values (Ticks per second) ─────────────────────────────
-    public static double outtakeVelocityShort = 925.0;  // ~1982 RPM
-    public static double outtakeVelocityLong  = 1075.0; // ~2304 RPM
+    public static double outtakeVelocityShort = 2025.0;  // ~1982 RPM
+    public static double outtakeVelocityLong  = 2800.0; // ~2304 RPM
 
     public static double shotSpeedMin       = 0.0;
     public static double shotSpeedMax       = 2800.0; // ~6000 RPM max ticks/sec
@@ -67,7 +67,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
         shooterMotor = hardwareMap.get(DcMotorEx.class, motorName);
         if (shooterMotor != null) {
             shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+            shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
             shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
@@ -185,7 +185,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
             // Read raw motor encoder velocity (ticks/second)
             try {
                 double vel = shooterMotor.getVelocity();
-                currentVelocity = Double.isNaN(vel) ? 0.0 : vel;
+                currentVelocity = Double.isNaN(vel) ? 0.0 : Math.abs(vel);
             } catch (Exception e) {
                 currentVelocity = 0.0;
             }
