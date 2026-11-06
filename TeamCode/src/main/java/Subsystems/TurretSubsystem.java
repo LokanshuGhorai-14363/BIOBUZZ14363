@@ -38,10 +38,9 @@ public class TurretSubsystem extends SubsystemBase {
     /**
      * SERVO CENTER POSITION (0.0 to 1.0)
      * The PWM position corresponding to 100° (straight forward center).
-     * Adjust this value so that on initialization, the servo holds the turret
-     * straight forward without jumping to the left or right!
+     * Standard PWM center is 0.50 (1500 µs).
      */
-    public static double SERVO_CENTER_POSITION = 0.25;
+    public static double SERVO_CENTER_POSITION = 0.50;
 
     // Standard Axon MAX Mark 2 Servo PWM limits (in microseconds)
     public static final int PWM_MIN_US = 500;
