@@ -73,6 +73,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
 
     protected HiveGoalTracker  goalTracker;
     protected GamepadEx        driverGamepad;
+    protected GamepadEx        coDriverGamepad;
     protected List<LynxModule> allHubs;
     protected final ElapsedTime loopTimer = new ElapsedTime();
     protected final ElapsedTime telemetryTimer = new ElapsedTime();
@@ -81,6 +82,9 @@ public abstract class VisionTeleOp extends CommandOpMode {
     private final Alliance alliance;
     private boolean autoAimEnabled = false; // Disabled by default so chassis won't fight manual driver rotation
     private boolean dynamicVelocityEnabled = true;
+
+    // Gamepad 2 (Co-Driver) Manual Turret Control State
+    private boolean manualTurretMode = false; // false = Odometry Auto-Tracking, true = Manual (Gamepad 2 Left Stick X)
 
     public VisionTeleOp(Alliance alliance) {
         this.alliance = alliance;
@@ -117,7 +121,8 @@ public abstract class VisionTeleOp extends CommandOpMode {
         goalTracker.update(startPose);
 
         // 5. Gamepad setup
-        driverGamepad = new GamepadEx(gamepad1);
+        driverGamepad   = new GamepadEx(gamepad1);
+        coDriverGamepad = new GamepadEx(gamepad2);
 
         // 6. Default Commands (non-blocking, running in background every loop)
         configureDefaultCommands();
@@ -144,10 +149,12 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 () ->  autoAimEnabled
         ));
 
-        // Default Turret: Continuous tracking of active HIVE goal via Pinpoint odometry
+        // Default Turret: Continuous odometry goal tracking OR manual Co-Driver stick control
         turretSubsystem.setDefaultCommand(new TurretTrackGoalCommand(
                 turretSubsystem,
-                visionSubsystem
+                visionSubsystem,
+                () -> manualTurretMode,
+                () -> coDriverGamepad.getLeftX()
         ));
     }
 
@@ -218,6 +225,27 @@ public abstract class VisionTeleOp extends CommandOpMode {
         // ── Toggle Dynamic Velocity Scaling (D-Pad Down) ────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_DOWN)
                 .whenPressed(() -> dynamicVelocityEnabled = !dynamicVelocityEnabled);
+
+        // ── Gamepad 2 (Co-Driver): Turret Mode & Flywheel Velocity Controls ──
+        // A Button: Toggle between Odometry Goal Tracking and Manual Stick Control
+        new GamepadButton(coDriverGamepad, GamepadKeys.Button.A)
+                .whenPressed(() -> manualTurretMode = !manualTurretMode);
+
+        // Right Bumper: Increase shooter flywheel velocity target (+100 ticks/sec ~ +215 RPM)
+        new GamepadButton(coDriverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
+                .whenPressed(() -> {
+                    double currentVel = turretShooterSubsystem.getTargetVelocity();
+                    double newVel = (currentVel <= 0) ? TurretShooterSubsystem.outtakeVelocityShort : currentVel + 100.0;
+                    turretShooterSubsystem.setTargetVelocity(newVel);
+                });
+
+        // Left Bumper: Decrease shooter flywheel velocity target (-100 ticks/sec ~ -215 RPM)
+        new GamepadButton(coDriverGamepad, GamepadKeys.Button.LEFT_BUMPER)
+                .whenPressed(() -> {
+                    double currentVel = turretShooterSubsystem.getTargetVelocity();
+                    double newVel = Math.max(0.0, currentVel - 100.0);
+                    turretShooterSubsystem.setTargetVelocity(newVel);
+                });
     }
 
     public void toggleFlywheel() {
@@ -279,6 +307,9 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 goalTracker.getDistanceInches()));
         telemetry.addData("Auto-Aim", autoAimEnabled ? "ON" : "OFF");
         telemetry.addData("Hdg Err", String.format("%.1f°", goalTracker.getHeadingErrorDeg()));
+        telemetry.addData("Turret Mode", manualTurretMode
+                ? "MANUAL (Gamepad 2 Stick X Analog @ Max 250°/s)"
+                : "AUTO-TRACKING (Odometry)");
         telemetry.addData("Shooter", String.format("%s (%.0f / %.0f RPM)",
                 turretShooterSubsystem.getState(),
                 turretShooterSubsystem.getCurrentRPM(),
