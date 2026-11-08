@@ -3,6 +3,7 @@ package Subsystems;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.pedropathing.follower.Follower;
@@ -11,37 +12,31 @@ import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathSegment;
 import com.pedropathing.paths.curves.Line;
 import com.pedropathing.paths.interpolator.Interpolator;
-import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.config.Modifier;
 import pedroPathing.constants.Constants;
+import Subsystems.VisionSubsystem.Alliance;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DriveSubsystem — Mecanum drive powered by Pedro Pathing's Follower.
+ * DriveSubsystem — High-speed Mecanum drive matching BasicFieldCentricTeleOp performance.
  *
- * In TeleOp the Follower handles all kinematic math (inverse kinematics,
- * heading correction, etc.).  We simply feed it translation/strafe/rotation
- * vectors every loop and call {@code update()}.
- *
- * Motor configuration (goBILDA Yellow Jacket 425 RPM) is handled through
- * the Pedro Pathing constants file {@link Constants}.
+ * <p>Drivetrain motors are driven directly with RUN_WITHOUT_ENCODER and BRAKE mode using
+ * fast kinematic math for maximum speed and zero lag, while Pedro Pathing Follower maintains
+ * continuous Pinpoint odometry pose tracking.</p>
  */
 public class DriveSubsystem extends SubsystemBase {
 
     private final Follower follower;
     private final Telemetry telemetry;
 
-    // Starting pose — (0, 0, 0) by default; override in autonomous
-    private static final Pose START_POSE = new Pose(0, 0, 0);
+    private final DcMotorEx leftFront;
+    private final DcMotorEx rightFront;
+    private final DcMotorEx leftRear;
+    private final DcMotorEx rightRear;
 
-    /**
-     * Heading offset (radians) for field-centric driving.
-     * When the driver presses the "reset heading" button, this is set to the
-     * current robot heading so the joystick "forward" aligns with whatever
-     * direction the robot is facing at that moment.
-     */
+    private Alliance currentAlliance = Alliance.RED;
     private double headingOffset = 0.0;
 
     /**
@@ -51,59 +46,98 @@ public class DriveSubsystem extends SubsystemBase {
     public DriveSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
-        // Guarantee all drivetrain motors run in RUN_WITHOUT_ENCODER mode for 100% full power output
-        DcMotorEx leftFront = hardwareMap.get(DcMotorEx.class, "leftFront");
-        DcMotorEx rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
-        DcMotorEx leftRear = hardwareMap.get(DcMotorEx.class, "leftRear");
-        DcMotorEx rightRear = hardwareMap.get(DcMotorEx.class, "rightRear");
+        leftFront  = hardwareMap.get(DcMotorEx.class, "leftFront");
+        rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
+        leftRear   = hardwareMap.get(DcMotorEx.class, "leftRear");
+        rightRear  = hardwareMap.get(DcMotorEx.class, "rightRear");
+
+        // Motor directions matching BasicFieldCentricTeleOp
+        leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
+        rightFront.setDirection(DcMotorSimple.Direction.FORWARD);
+        leftRear.setDirection(DcMotorSimple.Direction.REVERSE);
+        rightRear.setDirection(DcMotorSimple.Direction.FORWARD);
 
         for (DcMotorEx motor : new DcMotorEx[]{leftFront, rightFront, leftRear, rightRear}) {
             motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
 
-        // Follower is created via our unified Constants class (Pedro Pathing 3.x)
         follower = Constants.createFollower(hardwareMap);
-        follower.setPose(START_POSE);
+        follower.setPose(new Pose(0, 0, 0));
     }
 
-    // ───────────────────────────── TeleOp control ─────────────────────────────
+    /**
+     * Configures the active Alliance for field-centric orientation perspective.
+     *
+     * @param alliance RED (driver at X=0 facing +X) or BLUE (driver at X=144 facing -X)
+     */
+    public void setAlliance(Alliance alliance) {
+        this.currentAlliance = alliance;
+    }
 
     /**
-     * Pass raw joystick values into the Pedro Pathing drive system.
+     * Direct robot-centric mecanum drive.
      *
-     * @param forward  left-stick Y (negative = forward on most gamepads)
-     * @param strafe   left-stick X
-     * @param rotation right-stick X (or left-stick X for single-stick mode)
+     * @param forward  robot forward power (+1 = forward)
+     * @param strafe   robot strafe power (+1 = strafe left)
+     * @param rotation robot rotation power (+1 = turn CCW)
      */
     public void drive(double forward, double strafe, double rotation) {
-        follower.drivetrain.drive(new DrivePowers(forward, strafe, rotation), true);
+        driveMotors(forward, strafe, rotation);
     }
 
     /**
-     * Field-centric drive using the Pinpoint localizer's heading.
-     * <p>
-     * The joystick (forward, strafe) vector is rotated by the negative of
-     * (robotHeading − headingOffset) so that "forward" on the stick always
-     * means the direction the robot was facing when the heading was last reset.
+     * Field-centric mecanum drive matching BasicFieldCentricTeleOp speed.
      *
-     * @param forward  left-stick Y (positive = forward in field frame)
-     * @param strafe   left-stick X (positive = right in field frame)
-     * @param rotation right-stick X
+     * <p>Red Alliance (driver at X=0 facing +X): Forward = +X (right on diagram), Left = +Y (up on diagram).<br>
+     * Blue Alliance (driver at X=144 facing -X): Forward = -X (left on diagram), Left = -Y (down on diagram).</p>
+     *
+     * @param forward  driver forward input (+1 = push away from driver into field)
+     * @param strafe   driver strafe input (+1 = driver left)
+     * @param rotation driver rotation input (+1 = turn CCW)
      */
     public void driveFieldCentric(double forward, double strafe, double rotation) {
-        double heading = getHeading() - headingOffset;
+        double fieldX;
+        double fieldY;
 
-        // Rotate joystick vector into the robot's local frame
+        if (currentAlliance == Alliance.RED) {
+            fieldX = forward;
+            fieldY = strafe;
+        } else {
+            fieldX = -forward;
+            fieldY = -strafe;
+        }
+
+        double heading = getHeading() - headingOffset;
         double cos = Math.cos(-heading);
         double sin = Math.sin(-heading);
-        double robotForward = forward * cos - strafe * sin;
-        double robotStrafe  = forward * sin + strafe * cos;
+        double robotX = fieldX * cos - fieldY * sin;
+        double robotY = fieldX * sin + fieldY * cos;
 
-        follower.drivetrain.drive(new DrivePowers(robotForward, robotStrafe, rotation), true);
+        driveMotors(robotX, robotY, rotation);
     }
 
-    // ───────────────────────────── Heading helpers ─────────────────────────────
+    /**
+     * Computes direct mecanum motor powers matching BasicFieldCentricTeleOp.
+     */
+    private void driveMotors(double robotX, double robotY, double rotation) {
+        double fl = robotX - robotY - rotation;
+        double fr = robotX + robotY + rotation;
+        double bl = robotX + robotY - rotation;
+        double br = robotX - robotY + rotation;
+
+        double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                Math.max(Math.abs(bl), Math.abs(br))));
+        fl /= max;
+        fr /= max;
+        bl /= max;
+        br /= max;
+
+        leftFront.setPower(fl);
+        rightFront.setPower(fr);
+        leftRear.setPower(bl);
+        rightRear.setPower(br);
+    }
 
     /**
      * Returns the current robot heading in radians from the Pinpoint localizer.
@@ -113,61 +147,47 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     /**
-     * Resets the field-centric heading reference to the robot's current heading.
-     * After calling this, "forward" on the joystick will mean whatever
-     * direction the robot is currently facing.
+     * Resets field-centric heading reference to current alliance orientation.
      */
     public void resetHeading() {
-        headingOffset = getHeading();
+        headingOffset = getHeading() - (currentAlliance == Alliance.BLUE ? Math.PI : 0.0);
     }
 
     /**
-     * Stop all drivetrain motion.
+     * Stops all drivetrain motion.
      */
     public void stop() {
+        leftFront.setPower(0);
+        rightFront.setPower(0);
+        leftRear.setPower(0);
+        rightRear.setPower(0);
         follower.drivetrain.stop();
     }
 
-    // ───────────────────────────── Lifecycle ───────────────────────────────────
-
-    /**
-     * Called every CommandScheduler loop.  Updates the Follower's internal
-     * odometry and motor outputs.
-     */
     @Override
     public void periodic() {
         follower.update();
 
         Pose pose = follower.pose();
-        telemetry.addData("Drive X", pose.x());
-        telemetry.addData("Drive Y", pose.y());
-        telemetry.addData("Drive Heading (°)", Math.toDegrees(pose.heading()));
+        if (telemetry != null) {
+            telemetry.addData("Drive X", "%.2f", pose.x());
+            telemetry.addData("Drive Y", "%.2f", pose.y());
+            telemetry.addData("Drive Heading (°)", "%.2f", Math.toDegrees(pose.heading()));
+        }
     }
 
-    /**
-     * Provides the Follower instance for autonomous path-following.
-     */
     public Follower getFollower() {
         return follower;
     }
 
-    /**
-     * Retrieves the current pose from the Follower.
-     */
     public Pose getPose() {
         return follower.pose();
     }
 
-    /**
-     * Overwrites the robot's current pose (useful for vision relocalization).
-     */
     public void setPose(Pose pose) {
         follower.setPose(pose);
     }
 
-    /**
-     * Autonomously follows a straight line path to the target pose.
-     */
     public void followPathTo(Pose target) {
         Path path = new Path(new Line(follower.pose(), target), new ArrayList<>()) {
             @Override
@@ -198,17 +218,11 @@ public class DriveSubsystem extends SubsystemBase {
         follower.follow(path);
     }
 
-    /**
-     * Checks if the Follower has completed the current path.
-     */
     public boolean isPathComplete() {
         return !follower.isBusy();
     }
 
-    /**
-     * Resumes TeleOp control after an autonomous command finishes.
-     */
     public void resumeTeleOp() {
-        follower.drivetrain.stop();
+        stop();
     }
 }

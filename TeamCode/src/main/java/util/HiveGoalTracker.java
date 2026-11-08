@@ -19,20 +19,20 @@ import Subsystems.VisionSubsystem.Alliance;
  *       alignment.</li>
  * </ul>
  *
- * <h3>Field Coordinate System (Pedro Pathing / Road Runner convention)</h3>
+ * <h3>Field Coordinate System (Switched X/Y Axes)</h3>
  * <pre>
- *   Origin (0, 0)       → bottom-left (Audience-left / Red Garden corner)
- *   X-axis              → runs left-to-right along the Audience Wall
- *   Y-axis              → runs from Audience Wall (Y = 0) to Back Wall (Y = 144)
+ *   Origin (0, 0)       → bottom-left
+ *   X-axis              → runs horizontally from Left (X = 0) to Right (X = 144)
+ *   Y-axis              → runs vertically from Bottom (Y = 0) to Top (Y = 144)
  *   Positive heading    → counter-clockwise from +X axis (standard math convention)
  * </pre>
  *
  * <h3>HIVE Goal Coordinates (inches)</h3>
  * <pre>
- *   Red  Near Goal (Y &lt; 72"):  (60.0, 60.0)
- *   Red  Far  Goal (Y ≥ 72"):  (60.0, 84.0)
- *   Blue Near Goal (Y &lt; 72"):  (84.0, 60.0)
- *   Blue Far  Goal (Y ≥ 72"):  (84.0, 84.0)
+ *   Red  Near Goal (X &lt; 72"):  (60.0, 60.0)
+ *   Red  Far  Goal (X ≥ 72"):  (84.0, 60.0)
+ *   Blue Near Goal (X &lt; 72"):  (60.0, 84.0)
+ *   Blue Far  Goal (X ≥ 72"):  (84.0, 84.0)
  * </pre>
  *
  * This class is intentionally stateless with respect to hardware — it operates
@@ -48,26 +48,26 @@ public class HiveGoalTracker {
     /** Field tile area: 144 in × 144 in. */
     public static final double FIELD_SIZE_IN = 144.0;
 
-    /** Y-coordinate threshold separating Near and Far goals. */
-    public static final double MID_FIELD_Y = 72.0;
+    /** X-coordinate threshold separating Near and Far goals. */
+    public static final double MID_FIELD_X = 72.0;
 
     /**
-     * Hysteresis half-width (inches) around {@link #MID_FIELD_Y}.
+     * Hysteresis half-width (inches) around {@link #MID_FIELD_X}.
      * The target will not switch until the robot crosses
-     * {@code MID_FIELD_Y ± HYSTERESIS_BAND}.  This prevents rapid oscillation
-     * when the robot hovers near Y = 72".
+     * {@code MID_FIELD_X ± HYSTERESIS_BAND}.  This prevents rapid oscillation
+     * when the robot hovers near X = 72".
      */
     public static final double HYSTERESIS_BAND = 1.5;
 
     // ── Red Alliance goal positions ──────────────────────────────────────────
-    public static final double RED_GOAL_X       = 60.0;
-    public static final double RED_NEAR_GOAL_Y  = 60.0;   // Audience side
-    public static final double RED_FAR_GOAL_Y   = 84.0;   // Back Wall side
+    public static final double RED_GOAL_Y       = 60.0;
+    public static final double RED_NEAR_GOAL_X  = 60.0;
+    public static final double RED_FAR_GOAL_X   = 84.0;
 
     // ── Blue Alliance goal positions ─────────────────────────────────────────
-    public static final double BLUE_GOAL_X      = 84.0;
-    public static final double BLUE_NEAR_GOAL_Y = 60.0;   // Audience side
-    public static final double BLUE_FAR_GOAL_Y  = 84.0;   // Back Wall side
+    public static final double BLUE_GOAL_Y      = 84.0;
+    public static final double BLUE_NEAR_GOAL_X = 60.0;
+    public static final double BLUE_FAR_GOAL_X  = 84.0;
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  PID Heading Correction Gains (chassis align-to-goal)
@@ -107,14 +107,14 @@ public class HiveGoalTracker {
 
     private final Alliance alliance;
 
-    /** Goal X for this alliance (constant once constructed). */
-    private final double goalX;
+    /** Goal Y for this alliance (constant once constructed). */
+    private final double goalY;
 
-    /** Near-goal Y for this alliance. */
-    private final double nearGoalY;
+    /** Near-goal X for this alliance. */
+    private final double nearGoalX;
 
-    /** Far-goal Y for this alliance. */
-    private final double farGoalY;
+    /** Far-goal X for this alliance. */
+    private final double farGoalX;
 
     /**
      * {@code true} = currently targeting the Far goal;
@@ -123,8 +123,8 @@ public class HiveGoalTracker {
      */
     private boolean targetingFar = false;
 
-    /** Currently active target Y-coordinate (updated by {@link #update}). */
-    private double activeTargetY;
+    /** Currently active target X-coordinate (updated by {@link #update}). */
+    private double activeTargetX;
 
     // ── PID state for heading correction ─────────────────────────────────────
     private double headingIntegral = 0.0;
@@ -149,18 +149,18 @@ public class HiveGoalTracker {
         this.alliance = alliance;
 
         if (alliance == Alliance.RED) {
-            goalX     = RED_GOAL_X;
-            nearGoalY = RED_NEAR_GOAL_Y;
-            farGoalY  = RED_FAR_GOAL_Y;
+            goalY     = RED_GOAL_Y;
+            nearGoalX = RED_NEAR_GOAL_X;
+            farGoalX  = RED_FAR_GOAL_X;
         } else {
-            goalX     = BLUE_GOAL_X;
-            nearGoalY = BLUE_NEAR_GOAL_Y;
-            farGoalY  = BLUE_FAR_GOAL_Y;
+            goalY     = BLUE_GOAL_Y;
+            nearGoalX = BLUE_NEAR_GOAL_X;
+            farGoalX  = BLUE_FAR_GOAL_X;
         }
 
         // Start targeting the Near goal
         targetingFar   = false;
-        activeTargetY  = nearGoalY;
+        activeTargetX  = nearGoalX;
         lastTimeNanos  = System.nanoTime();
     }
 
@@ -179,25 +179,25 @@ public class HiveGoalTracker {
      */
     public void update(Pose robotPose) {
         // ── 1. Hysteresis-based target selection ─────────────────────────────
-        double robotY = robotPose.y();
+        double robotX = robotPose.x();
 
         if (targetingFar) {
             // Switch back to Near only when robot drops below the low threshold
-            if (robotY < MID_FIELD_Y - HYSTERESIS_BAND) {
+            if (robotX < MID_FIELD_X - HYSTERESIS_BAND) {
                 targetingFar  = false;
-                activeTargetY = nearGoalY;
+                activeTargetX = nearGoalX;
             }
         } else {
             // Switch to Far only when robot rises above the high threshold
-            if (robotY >= MID_FIELD_Y + HYSTERESIS_BAND) {
+            if (robotX >= MID_FIELD_X + HYSTERESIS_BAND) {
                 targetingFar  = true;
-                activeTargetY = farGoalY;
+                activeTargetX = farGoalX;
             }
         }
 
         // ── 2. Compute vector from robot to target ───────────────────────────
-        double dx = goalX - robotPose.x();
-        double dy = activeTargetY - robotPose.y();
+        double dx = activeTargetX - robotPose.x();
+        double dy = goalY - robotPose.y();
 
         cachedDistanceIn    = Math.hypot(dx, dy);
         cachedHeadingRad    = Math.atan2(dy, dx);                // field-frame angle
@@ -210,12 +210,12 @@ public class HiveGoalTracker {
 
     /** @return active target goal X-coordinate (inches). */
     public double getTargetX() {
-        return goalX;
+        return activeTargetX;
     }
 
     /** @return active target goal Y-coordinate (inches). */
     public double getTargetY() {
-        return activeTargetY;
+        return goalY;
     }
 
     /** @return {@code true} if currently locked onto the Far goal. */

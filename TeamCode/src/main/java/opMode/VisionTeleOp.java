@@ -115,6 +115,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
 
         // 4. Configure Alliance and starting pose
         visionSubsystem.setAlliance(alliance);
+        driveSubsystem.setAlliance(alliance);
         goalTracker = visionSubsystem.getGoalTracker();
         Pose startPose = visionSubsystem.getStartPose(alliance);
         driveSubsystem.setPose(startPose);
@@ -144,8 +145,8 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 driveSubsystem,
                 goalTracker,
                 () -> -driverGamepad.getLeftY(),
-                () ->  driverGamepad.getLeftX(),
-                () ->  driverGamepad.getRightX(),
+                () -> -driverGamepad.getLeftX(),
+                () -> -driverGamepad.getRightX(),
                 () ->  autoAimEnabled
         ));
 
