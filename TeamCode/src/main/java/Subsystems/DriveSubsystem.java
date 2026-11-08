@@ -13,7 +13,7 @@ import com.pedropathing.paths.PathSegment;
 import com.pedropathing.paths.curves.Line;
 import com.pedropathing.paths.interpolator.Interpolator;
 import com.pedropathing.config.Modifier;
-import pedroPathing.constants.Constants;
+import org.firstinspires.ftc.teamcode.pedro.Constants;
 import Subsystems.VisionSubsystem.Alliance;
 
 import java.util.ArrayList;
