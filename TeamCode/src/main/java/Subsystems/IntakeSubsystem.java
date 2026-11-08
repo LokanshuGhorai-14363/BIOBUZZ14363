@@ -59,7 +59,7 @@ public class IntakeSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
-        if (telemetry != null) {
+        if (telemetry != null && intakeMotor != null) {
             telemetry.addData("Intake Power", intakeMotor.getPower());
         }
     }

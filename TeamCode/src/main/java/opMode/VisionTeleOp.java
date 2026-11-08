@@ -1,6 +1,7 @@
 package opMode;
 
 import com.arcrobotics.ftclib.command.CommandOpMode;
+import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
@@ -92,6 +93,11 @@ public abstract class VisionTeleOp extends CommandOpMode {
 
     @Override
     public void initialize() {
+        // Clear subsystems/commands left in the singleton scheduler by a previous OpMode that
+        // crashed (FTCLib only resets it when an OpMode ends normally). Stale subsystems from
+        // those runs caused NPEs in periodic() at START (e.g. IntakeSubsystem line 63).
+        CommandScheduler.getInstance().reset();
+
         // Fast telemetry update transmission interval (20ms = 50Hz)
         telemetry.setMsTransmissionInterval(20);
 
@@ -144,9 +150,10 @@ public abstract class VisionTeleOp extends CommandOpMode {
         driveSubsystem.setDefaultCommand(new GoalTrackingDriveCommand(
                 driveSubsystem,
                 goalTracker,
-                () -> -driverGamepad.getLeftY(),
-                () -> -driverGamepad.getLeftX(),
-                () -> -driverGamepad.getRightX(),
+                // Same stick mapping as BasicFieldCentricTeleOp (raw gamepad, +fwd, +left, +CCW)
+                () -> -gamepad1.left_stick_y,
+                () -> -gamepad1.left_stick_x,
+                () -> -gamepad1.right_stick_x,
                 () ->  autoAimEnabled
         ));
 
@@ -184,10 +191,6 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 .whileActiveContinuous(() -> {
                     double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger);
 
-                    // Guarantee shooter flywheel spins up when attempting to shoot
-                    if (!turretShooterSubsystem.isSpinning()) {
-                        spinUpFlywheelGuaranteed();
-                    }
 
                     double feedPower = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
                     transferSubsystem.spinProportional(feedPower);
@@ -215,9 +218,10 @@ public abstract class VisionTeleOp extends CommandOpMode {
         new GamepadButton(driverGamepad, GamepadKeys.Button.X)
                 .whenPressed(new AutoEjectCommand(intakeSubsystem));
 
-        // ── Reset Field-Centric Heading (Y Button) ──────────────────────────
-        new GamepadButton(driverGamepad, GamepadKeys.Button.Y)
-                .whenPressed(driveSubsystem::resetHeading);
+        // ── Re-place Heading (Options Button, same as BasicFieldCentricTeleOp) ─
+        // Heading -> 90 deg (both alliances); X/Y position is kept.
+        new Trigger(() -> gamepad1.options)
+                .whenActive(driveSubsystem::resetHeading);
 
         // ── Relocalize to Top-Left Square (D-Pad Up) ────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_UP)

@@ -1,35 +1,34 @@
 package Subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.pedropathing.math.Pose;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import com.pedropathing.follower.Follower;
-import com.pedropathing.math.Pose;
-import com.pedropathing.paths.Path;
-import com.pedropathing.paths.PathSegment;
-import com.pedropathing.paths.curves.Line;
-import com.pedropathing.paths.interpolator.Interpolator;
-import com.pedropathing.config.Modifier;
-import org.firstinspires.ftc.teamcode.pedro.Constants;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import Subsystems.VisionSubsystem.Alliance;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * DriveSubsystem — High-speed Mecanum drive matching BasicFieldCentricTeleOp performance.
  *
  * <p>Drivetrain motors are driven directly with RUN_WITHOUT_ENCODER and BRAKE mode using
- * fast kinematic math for maximum speed and zero lag, while Pedro Pathing Follower maintains
- * continuous Pinpoint odometry pose tracking.</p>
+ * fast kinematic math for maximum speed and zero lag. Pose tracking reads the goBILDA
+ * Pinpoint directly (no Pedro Follower; Pedro is only used in auton).</p>
  */
 public class DriveSubsystem extends SubsystemBase {
 
-    private final Follower follower;
+    // Pinpoint setup — keep in sync with Constants.localizerConfig
+    private static final double X_POD_OFFSET_IN = 7.340251892570436;
+    private static final double Y_POD_OFFSET_IN = 2.6424675288162836;
+
+    private final GoBildaPinpointDriver pinpoint;
     private final Telemetry telemetry;
+    private Pose currentPose = new Pose(0, 0, 0);
 
     private final DcMotorEx leftFront;
     private final DcMotorEx rightFront;
@@ -37,7 +36,6 @@ public class DriveSubsystem extends SubsystemBase {
     private final DcMotorEx rightRear;
 
     private Alliance currentAlliance = Alliance.RED;
-    private double headingOffset = 0.0;
 
     /**
      * @param hardwareMap the robot's HardwareMap
@@ -62,8 +60,14 @@ public class DriveSubsystem extends SubsystemBase {
             motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
 
-        follower = Constants.createFollower(hardwareMap);
-        follower.setPose(new Pose(0, 0, 0));
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.setOffsets(X_POD_OFFSET_IN, Y_POD_OFFSET_IN, DistanceUnit.INCH);
+        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+        pinpoint.setEncoderDirections(
+                GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                GoBildaPinpointDriver.EncoderDirection.FORWARD);
+        pinpoint.resetPosAndIMU(); // robot must be still
+        setPose(new Pose(0, 0, 0));
     }
 
     /**
@@ -108,7 +112,7 @@ public class DriveSubsystem extends SubsystemBase {
             fieldY = -strafe;
         }
 
-        double heading = getHeading() - headingOffset;
+        double heading = getHeading();
         double cos = Math.cos(-heading);
         double sin = Math.sin(-heading);
         double robotX = fieldX * cos - fieldY * sin;
@@ -143,14 +147,22 @@ public class DriveSubsystem extends SubsystemBase {
      * Returns the current robot heading in radians from the Pinpoint localizer.
      */
     public double getHeading() {
-        return follower.pose().heading();
+        return currentPose.heading();
     }
 
     /**
-     * Resets field-centric heading reference to current alliance orientation.
+     * Re-places the Pinpoint heading (like BasicFieldCentricTeleOp's options button) while
+     * keeping the current X/Y: 90 deg for both alliances (same as the start poses).
+     * Blue is handled by flipping the drive controls 180 deg in driveFieldCentric().
+     * Robot must be in its starting orientation.
      */
     public void resetHeading() {
-        headingOffset = getHeading() - (currentAlliance == Alliance.BLUE ? Math.PI : 0.0);
+        pinpoint.update();
+        double heading = Math.toRadians(90.0);
+        setPose(new Pose(
+                pinpoint.getPosX(DistanceUnit.INCH),
+                pinpoint.getPosY(DistanceUnit.INCH),
+                heading));
     }
 
     /**
@@ -161,14 +173,17 @@ public class DriveSubsystem extends SubsystemBase {
         rightFront.setPower(0);
         leftRear.setPower(0);
         rightRear.setPower(0);
-        follower.drivetrain.stop();
     }
 
     @Override
     public void periodic() {
-        follower.update();
+        pinpoint.update();
+        currentPose = new Pose(
+                pinpoint.getPosX(DistanceUnit.INCH),
+                pinpoint.getPosY(DistanceUnit.INCH),
+                pinpoint.getHeading(AngleUnit.RADIANS));
 
-        Pose pose = follower.pose();
+        Pose pose = currentPose;
         if (telemetry != null) {
             telemetry.addData("Drive X", "%.2f", pose.x());
             telemetry.addData("Drive Y", "%.2f", pose.y());
@@ -176,50 +191,13 @@ public class DriveSubsystem extends SubsystemBase {
         }
     }
 
-    public Follower getFollower() {
-        return follower;
-    }
-
     public Pose getPose() {
-        return follower.pose();
+        return currentPose;
     }
 
     public void setPose(Pose pose) {
-        follower.setPose(pose);
-    }
-
-    public void followPathTo(Pose target) {
-        Path path = new Path(new Line(follower.pose(), target), new ArrayList<>()) {
-            @Override
-            public double heading(double v) {
-                return target.heading();
-            }
-
-            @Override
-            protected boolean hasHeading() {
-                return true;
-            }
-
-            @Override
-            protected List<PathSegment> getSegments(PathSegment.HeadingProvider headingProvider, List<Modifier> list) {
-                return new ArrayList<>();
-            }
-
-            @Override
-            protected Path withHeading(Interpolator interpolator) {
-                return this;
-            }
-
-            @Override
-            protected Path withModifiers(List<Modifier> list) {
-                return this;
-            }
-        }.heading(Interpolator.linear(follower.pose(), target));
-        follower.follow(path);
-    }
-
-    public boolean isPathComplete() {
-        return !follower.isBusy();
+        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, pose.x(), pose.y(), AngleUnit.RADIANS, pose.heading()));
+        currentPose = pose;
     }
 
     public void resumeTeleOp() {

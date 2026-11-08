@@ -14,8 +14,8 @@ import util.HiveGoalTracker;
  * Field Specifications (Switched X/Y Axes):
  * - Field Size: 144in x 144in (Origin (0,0) at bottom-left)
  * - Robot Size: 17.5in Wide x 14.5in Long
- * - Red Start Pose: (7.25, 63.25, 0°)
- * - Blue Start Pose: (136.75, 80.75, 180°)
+ * - Red Start Pose: (72, 72, 90°)
+ * - Blue Start Pose: (72, 72, 90°) — Blue only flips the drive controls 180°
  * - Red Alliance Goals:  (60in, 60in) and (84in, 60in)
  * - Blue Alliance Goals: (60in, 84in) and (84in, 84in)
  */
@@ -37,8 +37,8 @@ public class VisionSubsystem extends SubsystemBase {
     public static final double ROBOT_LENGTH_INCHES = 14.5;
 
     // ────────────────────────── Starting Poses ──────────────────────────
-    public static final Pose RED_START_POSE = new Pose(7.25, 63.25, Math.toRadians(0.0));
-    public static final Pose BLUE_START_POSE = new Pose(136.75, 80.75, Math.toRadians(180.0));
+    public static final Pose RED_START_POSE = new Pose(72.0, 72.0, Math.toRadians(90.0));
+    public static final Pose BLUE_START_POSE = new Pose(72.0, 72.0, Math.toRadians(90.0));
     public static final Pose TOP_LEFT_RELOCALIZE_POSE = new Pose(132.0, 12.0, Math.toRadians(180.0));
 
     // Turret Zero / Center Offset in degrees (100.0° points straight forward relative to robot)

@@ -55,7 +55,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
     private double integralSum = 0.0;
     private double lastError = 0.0;
     private long lastTimeNanos = System.nanoTime();
-    private boolean isSpinning = false;
+    private boolean isSpinning = true;
 
     public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this(hardwareMap, telemetry, "shooterMotor");
