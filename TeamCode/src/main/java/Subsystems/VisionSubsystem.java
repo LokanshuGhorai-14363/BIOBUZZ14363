@@ -36,9 +36,11 @@ public class VisionSubsystem extends SubsystemBase {
     public static final double ROBOT_WIDTH_INCHES = 17.5;
     public static final double ROBOT_LENGTH_INCHES = 14.5;
 
-    // ────────────────────────── Starting Poses ──────────────────────────
+    // ────────────────────────── Starting & Relocalize Poses ──────────────────
     public static final Pose RED_START_POSE = new Pose(72.0, 72.0, Math.toRadians(90.0));
     public static final Pose BLUE_START_POSE = new Pose(72.0, 72.0, Math.toRadians(90.0));
+    public static final Pose RED_GARDEN_RELOCALIZE_POSE = new Pose(0.0, 0.0, Math.toRadians(90.0));
+    public static final Pose BLUE_GARDEN_RELOCALIZE_POSE = new Pose(144.0, 144.0, Math.toRadians(270.0));
     public static final Pose TOP_LEFT_RELOCALIZE_POSE = new Pose(132.0, 12.0, Math.toRadians(180.0));
 
     // Turret Zero / Center Offset in degrees (100.0° points straight forward relative to robot)
@@ -70,6 +72,10 @@ public class VisionSubsystem extends SubsystemBase {
 
     public Pose getStartPose(Alliance alliance) {
         return (alliance == Alliance.RED) ? RED_START_POSE : BLUE_START_POSE;
+    }
+
+    public Pose getGardenRelocalizePose(Alliance alliance) {
+        return (alliance == Alliance.RED) ? RED_GARDEN_RELOCALIZE_POSE : BLUE_GARDEN_RELOCALIZE_POSE;
     }
 
     public Pose getTopLeftRelocalizePose() {

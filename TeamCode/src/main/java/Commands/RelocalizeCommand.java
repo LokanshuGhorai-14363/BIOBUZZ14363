@@ -31,11 +31,11 @@ public class RelocalizeCommand extends CommandBase {
 
     @Override
     public void initialize() {
-        Pose relocalizePose = visionSubsystem.getTopLeftRelocalizePose();
+        Pose relocalizePose = visionSubsystem.getGardenRelocalizePose(visionSubsystem.getAlliance());
         driveSubsystem.setPose(relocalizePose);
 
         if (telemetry != null) {
-            telemetry.addData(">> STATUS", "RELOCALIZED TO TOP-LEFT SQUARE");
+            telemetry.addData(">> STATUS", "RELOCALIZED AT GARDEN (" + visionSubsystem.getAlliance() + ")");
             telemetry.addData(">> New Pose", String.format("(%.1fin, %.1fin, %.1f°)", 
                     relocalizePose.x(), relocalizePose.y(), Math.toDegrees(relocalizePose.heading())));
             telemetry.update();

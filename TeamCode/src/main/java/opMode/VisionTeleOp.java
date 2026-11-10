@@ -12,16 +12,13 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import java.util.List;
 
-import Commands.AutoEjectCommand;
 import Commands.GoalTrackingDriveCommand;
-import Commands.IntakeInCommand;
 import Commands.IntakeOutCommand;
 import Commands.RelocalizeCommand;
-import Commands.ScoreCommand;
-import Commands.ShootStopCommand;
 import Commands.TurretTrackGoalCommand;
 
 import Subsystems.DriveSubsystem;
+import Subsystems.FlowerSubsystem;
 import Subsystems.IntakeSubsystem;
 import Subsystems.TransferSubsystem;
 import Subsystems.TurretShooterSubsystem;
@@ -51,16 +48,13 @@ import util.HiveGoalTracker;
  * <ul>
  *   <li><b>Left Stick</b>: Field-centric translation (forward / strafe).</li>
  *   <li><b>Right Stick X</b>: Manual chassis rotation (overrides auto-aim).</li>
- *   <li><b>Left Trigger</b>: Analog proportional Intake IN + Transfer.</li>
- *   <li><b>Left Bumper</b>: Intake OUT / Reverse (full power, held).</li>
- *   <li><b>Right Trigger</b>: Shooter Flywheel ON (dynamic distance-scaled velocity, latched).</li>
- *   <li><b>Right Bumper</b>: Shooter Flywheel OFF.</li>
- *   <li><b>A Button</b>: Ultra-fast Score Macro (spin-up → feed → clear).</li>
- *   <li><b>B Button</b>: Toggle chassis auto-aim ON / OFF.</li>
- *   <li><b>X Button</b>: Auto-eject / Purge (timed 1-second reverse pulse).</li>
- *   <li><b>Y Button</b>: Reset field-centric forward heading.</li>
- *   <li><b>D-Pad Up</b>: Relocalize to top-left coordinate tile.</li>
- *   <li><b>D-Pad Down</b>: Toggle dynamic velocity scaling ON / OFF.</li>
+ *   <li><b>Left Trigger</b>: Intake IN (analog proportional).</li>
+ *   <li><b>Right Trigger</b>: Intake + Transfer (analog proportional).</li>
+ *   <li><b>B Button</b>: Intake + Transfer (full power, held).</li>
+ *   <li><b>Left Bumper</b>: Eject / Reverse Intake + Transfer (held).</li>
+ *   <li><b>Right Bumper</b>: Shooter Flywheel ON / OFF toggle.</li>
+ *   <li><b>D-Pad Up</b>: Relocalize at Gardens (Red (0,0), Blue (144,144)).</li>
+ *   <li><b>D-Pad Down</b>: IMU Reset / Field-centric heading reset.</li>
  * </ul>
  */
 public abstract class VisionTeleOp extends CommandOpMode {
@@ -71,6 +65,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
     protected TurretShooterSubsystem turretShooterSubsystem;
     protected TurretSubsystem        turretSubsystem;
     protected VisionSubsystem        visionSubsystem;
+    protected FlowerSubsystem        flowerSubsystem;
 
     protected HiveGoalTracker  goalTracker;
     protected GamepadEx        driverGamepad;
@@ -114,10 +109,11 @@ public abstract class VisionTeleOp extends CommandOpMode {
         turretShooterSubsystem = new TurretShooterSubsystem(hardwareMap, telemetry);
         turretSubsystem        = new TurretSubsystem(hardwareMap, telemetry);
         visionSubsystem        = new VisionSubsystem(hardwareMap, telemetry, turretSubsystem, driveSubsystem);
+        flowerSubsystem        = new FlowerSubsystem(hardwareMap, telemetry);
 
         // 3. Register subsystems with FTCLib CommandScheduler
         register(driveSubsystem, intakeSubsystem, transferSubsystem,
-                 turretShooterSubsystem, turretSubsystem, visionSubsystem);
+                 turretShooterSubsystem, turretSubsystem, visionSubsystem, flowerSubsystem);
 
         // 4. Configure Alliance and starting pose
         visionSubsystem.setAlliance(alliance);
@@ -167,69 +163,59 @@ public abstract class VisionTeleOp extends CommandOpMode {
     }
 
     private void configureBindings() {
-        // ── Intake IN + Transfer (Proportional analog on Left Trigger) ───────
-        new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) > 0.05)
-                .whileActiveContinuous(
-                        new IntakeInCommand(
-                                intakeSubsystem,
-                                transferSubsystem,
-                                () -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER)
-                        )
-                );
+        // ── Left Trigger: Just Intake ─────────────────────────────────────────
+        new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) > 0.05
+                       || gamepad1.left_trigger > 0.05)
+                .whileActiveContinuous(() -> {
+                    double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER), gamepad1.left_trigger);
+                    double power = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
+                    intakeSubsystem.spinIn(power);
+                })
+                .whenInactive(() -> intakeSubsystem.stop());
 
-        // ── Intake OUT + Transfer (Full reverse on Left Bumper) ──────────────
+        // ── Right Trigger: Intake + Transfer while held, toggle Flower Servo (0° <-> 90°) on press ─
+        Trigger rightTrigger = new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
+                                             || gamepad1.right_trigger > 0.05);
+
+        rightTrigger.whenActive(flowerSubsystem::toggle);
+
+        rightTrigger.whileActiveContinuous(() -> {
+            double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger);
+            double power = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
+            intakeSubsystem.spinIn(power);
+            transferSubsystem.spinProportional(power);
+        })
+        .whenInactive(() -> {
+            intakeSubsystem.stop();
+            transferSubsystem.stop();
+        });
+
+        // ── B Button: Intake + Transfer ───────────────────────────────────────
+        new GamepadButton(driverGamepad, GamepadKeys.Button.B)
+                .whileHeld(() -> {
+                    intakeSubsystem.spinIn(1.0);
+                    transferSubsystem.spinProportional(1.0);
+                })
+                .whenReleased(() -> {
+                    intakeSubsystem.stop();
+                    transferSubsystem.stop();
+                });
+
+        // ── Left Bumper: Eject (Intake OUT + Transfer Reverse, no timer) ──────
         new GamepadButton(driverGamepad, GamepadKeys.Button.LEFT_BUMPER)
                 .whileHeld(new IntakeOutCommand(intakeSubsystem, transferSubsystem));
 
-        // ── A Button: Ultra-fast Score Macro (1-touch automated scoring) ──────
-        new GamepadButton(driverGamepad, GamepadKeys.Button.A)
-                .whenPressed(new ScoreCommand(intakeSubsystem, transferSubsystem, turretShooterSubsystem, goalTracker));
-
-        // ── Right Trigger: Spin Up Shooter Flywheel & Feed elements while held ─
-        new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
-                       || gamepad1.right_trigger > 0.05)
-                .whileActiveContinuous(() -> {
-                    double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger);
-
-
-                    double feedPower = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
-                    transferSubsystem.spinProportional(feedPower);
-                    intakeSubsystem.spinIn(feedPower);
-                })
-                .whenInactive(() -> {
-                    transferSubsystem.stop();
-                    intakeSubsystem.stop();
-                });
-
-        // ── Shooter Flywheel OFF (Right Bumper) ──────────────────────────────
+        // ── Right Bumper: Flywheel ON / OFF (Toggle) ─────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
-                .whenPressed(new ShootStopCommand(turretShooterSubsystem));
+                .whenPressed(this::toggleFlywheel);
 
-        // ── Toggle Auto-Aim (B Button) ──────────────────────────────────────
-        new GamepadButton(driverGamepad, GamepadKeys.Button.B)
-                .whenPressed(() -> {
-                    autoAimEnabled = !autoAimEnabled;
-                    if (!autoAimEnabled) {
-                        goalTracker.resetHeadingPID();
-                    }
-                });
-
-        // ── Auto-Eject / Purge (X Button: 1-second reverse pulse) ────────────
-        new GamepadButton(driverGamepad, GamepadKeys.Button.X)
-                .whenPressed(new AutoEjectCommand(intakeSubsystem));
-
-        // ── Re-place Heading (Options Button, same as BasicFieldCentricTeleOp) ─
-        // Heading -> 90 deg (both alliances); X/Y position is kept.
-        new Trigger(() -> gamepad1.options)
-                .whenActive(driveSubsystem::resetHeading);
-
-        // ── Relocalize to Top-Left Square (D-Pad Up) ────────────────────────
+        // ── D-Pad Up: Relocalize at Gardens (Red (0,0), Blue (144,144)) ──────
         new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_UP)
                 .whenPressed(new RelocalizeCommand(driveSubsystem, visionSubsystem, telemetry));
 
-        // ── Toggle Dynamic Velocity Scaling (D-Pad Down) ────────────────────
+        // ── D-Pad Down: IMU Reset / Reset Heading ────────────────────────────
         new GamepadButton(driverGamepad, GamepadKeys.Button.DPAD_DOWN)
-                .whenPressed(() -> dynamicVelocityEnabled = !dynamicVelocityEnabled);
+                .whenPressed(driveSubsystem::resetHeading);
 
         // ── Gamepad 2 (Co-Driver): Turret Mode & Flywheel Velocity Controls ──
         // A Button: Toggle between Odometry Goal Tracking and Manual Stick Control
