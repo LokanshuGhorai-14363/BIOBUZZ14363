@@ -84,9 +84,11 @@ public class VisionSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
+        if (driveSubsystem == null) return;
+
         Pose robotPose = driveSubsystem.getPose();
         goalTracker.update(robotPose);
-        double turretAngle = calculateOdometryTurretAngle();
+        double turretAngle = calculateOdometryTurretAngle(robotPose);
 
         if (telemetry != null) {
             telemetry.addData("Alliance", currentAlliance);
@@ -107,7 +109,18 @@ public class VisionSubsystem extends SubsystemBase {
      * @return Required turret angle in degrees, clamped to [0, 200].
      */
     public double calculateOdometryTurretAngle() {
-        Pose robotPose = driveSubsystem.getPose();
+        if (driveSubsystem == null) return TURRET_ZERO_OFFSET_DEG;
+        return calculateOdometryTurretAngle(driveSubsystem.getPose());
+    }
+
+    /**
+     * Calculates the required turret angle for any specified robot pose.
+     *
+     * @param robotPose Current robot pose in field coordinates.
+     * @return Required turret angle in degrees, clamped to [0, 200].
+     */
+    public double calculateOdometryTurretAngle(Pose robotPose) {
+        if (robotPose == null) return TURRET_ZERO_OFFSET_DEG;
         goalTracker.update(robotPose);
 
         // Target heading towards the goal in field frame

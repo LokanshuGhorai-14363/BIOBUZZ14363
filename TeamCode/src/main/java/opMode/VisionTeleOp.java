@@ -119,7 +119,9 @@ public abstract class VisionTeleOp extends CommandOpMode {
         visionSubsystem.setAlliance(alliance);
         driveSubsystem.setAlliance(alliance);
         goalTracker = visionSubsystem.getGoalTracker();
-        Pose startPose = visionSubsystem.getStartPose(alliance);
+        Pose startPose = (util.PoseStorage.currentPose != null)
+                ? util.PoseStorage.currentPose
+                : visionSubsystem.getStartPose(alliance);
         driveSubsystem.setPose(startPose);
         goalTracker.update(startPose);
 
