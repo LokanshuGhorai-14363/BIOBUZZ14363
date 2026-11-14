@@ -70,10 +70,12 @@ public class DriveSubsystem extends SubsystemBase {
         setPose(new Pose(0, 0, 0));
     }
 
+    private double headingOffset = 0.0;
+
     /**
      * Configures the active Alliance for field-centric orientation perspective.
      *
-     * @param alliance RED (driver at X=0 facing +X) or BLUE (driver at X=144 facing -X)
+     * @param alliance RED or BLUE
      */
     public void setAlliance(Alliance alliance) {
         this.currentAlliance = alliance;
@@ -91,10 +93,15 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     /**
-     * Field-centric mecanum drive matching BasicFieldCentricTeleOp speed.
+     * Field-centric mecanum drive matching driver perspective for both Red and Blue Alliances.
      *
-     * <p>Red Alliance (driver at X=0 facing +X): Forward = +X (right on diagram), Left = +Y (up on diagram).<br>
-     * Blue Alliance (driver at X=144 facing -X): Forward = -X (left on diagram), Left = -Y (down on diagram).</p>
+     * <p>Red Alliance (driver at X=0 looking +X):
+     *   Forward (+stick Y) = +X field direction
+     *   Left (+stick X)    = +Y field direction</p>
+     *
+     * <p>Blue Alliance (driver at X=144 looking -X):
+     *   Forward (+stick Y) = -X field direction
+     *   Left (+stick X)    = -Y field direction</p>
      *
      * @param forward  driver forward input (+1 = push away from driver into field)
      * @param strafe   driver strafe input (+1 = driver left)
@@ -113,10 +120,12 @@ public class DriveSubsystem extends SubsystemBase {
         }
 
         double heading = getHeading();
-        double cos = Math.cos(-heading);
-        double sin = Math.sin(-heading);
-        double robotX = fieldX * cos - fieldY * sin;
-        double robotY = fieldX * sin + fieldY * cos;
+        double cos = Math.cos(heading);
+        double sin = Math.sin(heading);
+
+        // Transform field vector to robot local frame
+        double robotX =  fieldX * cos + fieldY * sin;
+        double robotY = -fieldX * sin + fieldY * cos;
 
         driveMotors(robotX, robotY, rotation);
     }
@@ -151,10 +160,8 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     /**
-     * Re-places the Pinpoint heading (like BasicFieldCentricTeleOp's options button) while
-     * keeping the current X/Y: 90 deg for both alliances (same as the start poses).
-     * Blue is handled by flipping the drive controls 180 deg in driveFieldCentric().
-     * Robot must be in its starting orientation.
+     * Resets the Pinpoint IMU heading reference to match starting alliance orientation (90°).
+     * Robot must be facing in its starting orientation when pressed.
      */
     public void resetHeading() {
         pinpoint.update();

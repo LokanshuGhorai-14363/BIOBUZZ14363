@@ -165,7 +165,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
     }
 
     private void configureBindings() {
-        // ── Left Trigger: Just Intake ─────────────────────────────────────────
+        // ── Left Trigger: Just Intake (Analog Proportional) ───────────────────
         new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) > 0.05
                        || gamepad1.left_trigger > 0.05)
                 .whileActiveContinuous(() -> {
@@ -175,7 +175,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 })
                 .whenInactive(() -> intakeSubsystem.stop());
 
-        // ── Right Trigger: Intake + Transfer while held, toggle Flower Servo (0° <-> 90°) on press ─
+        // ── Right Trigger: Just Flower Servo + Intake ─────────────────────────
         Trigger rightTrigger = new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
                                              || gamepad1.right_trigger > 0.05);
 
@@ -185,16 +185,15 @@ public abstract class VisionTeleOp extends CommandOpMode {
             double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger);
             double power = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
             intakeSubsystem.spinIn(power);
-            transferSubsystem.spinProportional(power);
         })
-        .whenInactive(() -> {
-            intakeSubsystem.stop();
-            transferSubsystem.stop();
-        });
+        .whenInactive(() -> intakeSubsystem.stop());
 
-        // ── B Button: Intake + Transfer ───────────────────────────────────────
+        // ── B Button (Shoot Button): Intake + Transfer + Shooter Flywheel ──────
         new GamepadButton(driverGamepad, GamepadKeys.Button.B)
                 .whileHeld(() -> {
+                    if (!turretShooterSubsystem.isSpinning()) {
+                        spinUpFlywheelGuaranteed();
+                    }
                     intakeSubsystem.spinIn(1.0);
                     transferSubsystem.spinProportional(1.0);
                 })

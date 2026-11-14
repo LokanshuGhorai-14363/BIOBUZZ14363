@@ -20,11 +20,19 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static final double ENCODER_TICKS_PER_REV = 28.0;
     public static final double RPM_TOLERANCE         = 50.0;
 
-    // ── PID Coefficients ──────────────────────────────────────────────────────
-    public static double kP   = 0.001;
+    // ── PID & Feedforward Coefficients ───────────────────────────────────────
+    public static double kP   = 0.0015;
     public static double kI   = 0.001;
     public static double kD   = 0.00001;
     public static double maxI = 0.3; // Integral anti-windup limit
+
+    // ── Rapid Post-Shot Recovery / Bang-Bang Boost ───────────────────────────
+    /** Enable full-power acceleration boost when velocity drops after a shot. */
+    public static boolean useRecoveryBoost      = true;
+    /** RPM drop threshold below target to activate max-power recovery boost. */
+    public static double recoveryThresholdRPM   = 25.0;
+    /** Motor power (0.0 to 1.0) applied during fast recovery boost. */
+    public static double recoveryPower          = 1.0;
 
     // ── Feedforward Coefficients (normalized 0.0 to 1.0 power) ────────────────
     public static double kS = 0.05;    // Base power to overcome static friction
@@ -56,6 +64,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
     private double lastError = 0.0;
     private long lastTimeNanos = System.nanoTime();
     private boolean isSpinning = true;
+    private boolean isRecoveryActive = false;
 
     public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this(hardwareMap, telemetry, "shooterMotor");
@@ -117,6 +126,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
         this.isSpinning = false;
         this.integralSum = 0.0;
         this.lastError = 0.0;
+        this.isRecoveryActive = false;
         this.state = ShooterState.IDLE;
         if (shooterMotor != null) {
             shooterMotor.setPower(0.0);
@@ -127,6 +137,10 @@ public class TurretShooterSubsystem extends SubsystemBase {
 
     public boolean isSpinning() {
         return isSpinning;
+    }
+
+    public boolean isRecoveryActive() {
+        return isRecoveryActive;
     }
 
     public double getTargetVelocity() {
@@ -180,6 +194,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
             shooterMotor.setPower(0.0);
             integralSum = 0.0;
             lastError = 0.0;
+            isRecoveryActive = false;
             state = ShooterState.IDLE;
         } else {
             // Read raw motor encoder velocity (ticks/second)
@@ -200,29 +215,41 @@ public class TurretShooterSubsystem extends SubsystemBase {
                 state = ShooterState.SPINNING_UP;
             }
 
-            // PID error calculation (in ticks/sec)
-            double error = targetVelocity - currentVelocity;
+            // Rapid Post-Shot Recovery / Bang-Bang Boost Check:
+            // When current RPM drops significantly below target RPM (e.g. immediately after a shot),
+            // apply maximum motor power (1.0) to achieve the fastest possible physical recovery.
+            isRecoveryActive = useRecoveryBoost && (rpmError > recoveryThresholdRPM);
 
-            // Integral accumulation with anti-windup clamping
-            integralSum += error * dt;
-            if (kI > 0) {
-                double maxIntegralTerm = maxI / kI;
-                integralSum = Math.max(-maxIntegralTerm, Math.min(maxIntegralTerm, integralSum));
-            }
+            double power;
+            if (isRecoveryActive) {
+                power = Math.signum(targetVelocity) * recoveryPower;
+                integralSum = 0.0; // Reset integral accumulation during maximum boost phase
+                lastError = targetVelocity - currentVelocity;
+            } else {
+                // Standard PID error calculation (in ticks/sec)
+                double error = targetVelocity - currentVelocity;
 
-            // Derivative calculation
-            double derivative = (error - lastError) / dt;
-            lastError = error;
+                // Integral accumulation with anti-windup clamping
+                integralSum += error * dt;
+                if (kI > 0) {
+                    double maxIntegralTerm = maxI / kI;
+                    integralSum = Math.max(-maxIntegralTerm, Math.min(maxIntegralTerm, integralSum));
+                }
 
-            double pidOutput = (kP * error) + (kI * integralSum) + (kD * derivative);
-            double feedForward = (kS * Math.signum(targetVelocity)) + (kV * targetVelocity);
+                // Derivative calculation
+                double derivative = (error - lastError) / dt;
+                lastError = error;
 
-            double unclampedPower = pidOutput + feedForward;
-            double power = Math.max(-1.0, Math.min(1.0, unclampedPower));
+                double pidOutput = (kP * error) + (kI * integralSum) + (kD * derivative);
+                double feedForward = (kS * Math.signum(targetVelocity)) + (kV * targetVelocity);
 
-            // Fallback: Ensure motor receives power when target is set even if calculation yields low/NaN power
-            if (Double.isNaN(power) || (power <= 0.05 && targetVelocity > 0)) {
-                power = 0.5;
+                double unclampedPower = pidOutput + feedForward;
+                power = Math.max(-1.0, Math.min(1.0, unclampedPower));
+
+                // Fallback: Ensure motor receives power when target is set even if calculation yields low/NaN power
+                if (Double.isNaN(power) || (power <= 0.05 && targetVelocity > 0)) {
+                    power = 0.5;
+                }
             }
 
             shooterMotor.setPower(power);
@@ -232,6 +259,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
             telemetry.addData("Shooter Motor Found", (shooterMotor != null));
             telemetry.addData("Shooter Spinning Flag", isSpinning);
             telemetry.addData("Shooter State", state);
+            telemetry.addData("Shooter Recovery Active", isRecoveryActive);
             telemetry.addData("Shooter Power", (shooterMotor != null) ? shooterMotor.getPower() : 0.0);
             telemetry.addData("Shooter Target RPM", getTargetRPM());
             telemetry.addData("Shooter Current RPM", getCurrentRPM());
