@@ -30,7 +30,7 @@ public class TurretTrackGoalCommand extends CommandBase {
     private final DoubleSupplier manualStickXSupplier;
 
     /** Maximum physical turret sweep speed in degrees per second for maximum responsiveness. */
-    public static final double MAX_TURRET_SPEED_DEG_PER_SEC = 250.0;
+    public static double MAX_TURRET_SPEED_DEG_PER_SEC = 350.0;
 
     private final ElapsedTime timer = new ElapsedTime();
 

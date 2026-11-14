@@ -158,6 +158,9 @@ public class twoTiptwoFlowerRed extends OpMode {
         follower.update();
         autonomousPathUpdate();
 
+        // Continuous turret goal tracking as robot moves in autonomous
+        trackGoalAndAim();
+
         // 3. Update mechanism periodic loops
         flowerSubsystem.periodic();
         intakeSubsystem.periodic();
