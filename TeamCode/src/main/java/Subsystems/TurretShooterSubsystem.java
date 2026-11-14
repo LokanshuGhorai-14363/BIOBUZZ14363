@@ -21,11 +21,10 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static final double RPM_TOLERANCE         = 50.0;
 
     // ── PID & Feedforward Coefficients ───────────────────────────────────────
-    public static double kP         = 0.0035;
-    public static double kI         = 0.0005;
-    public static double kD         = 0.00005;
-    public static double maxI       = 0.15; // Strict anti-windup limit
-    public static double iZoneRPM   = 20.0; // Only accumulate integral within ±20 RPM of target
+    public static double kP   = 0.0015;
+    public static double kI   = 0.001;
+    public static double kD   = 0.00001;
+    public static double maxI = 0.3; // Integral anti-windup limit
 
     // ── Rapid Post-Shot Recovery / Bang-Bang Boost ───────────────────────────
     /** Enable full-power acceleration boost when velocity drops after a shot. */
@@ -37,11 +36,11 @@ public class TurretShooterSubsystem extends SubsystemBase {
 
     // ── Feedforward Coefficients (normalized 0.0 to 1.0 power) ────────────────
     public static double kS = 0.015;   // Base power to overcome static friction
-    public static double kV = 0.000275;// Calibrated feedforward gain for exact 4699 RPM steady-state
+    public static double kV = 0.000275;// Calibrated feedforward gain for exact 4700 RPM steady-state
     public static double kA = 0.0;     // Acceleration constant
 
     // ── Shooting Speed Values (Ticks per second) ─────────────────────────────
-    public static double outtakeVelocityShort = 2192.87; // 4699 RPM (4699/60 * 28 = 2192.87 ticks/sec)
+    public static double outtakeVelocityShort = 2193.33; // 4700 RPM (4700/60 * 28 = 2193.33 ticks/sec)
     public static double outtakeVelocityLong  = 2800.0;  // ~6000 RPM
 
     public static double shotSpeedMin       = 0.0;
@@ -230,17 +229,11 @@ public class TurretShooterSubsystem extends SubsystemBase {
                 // Standard PID error calculation (in ticks/sec)
                 double error = targetVelocity - currentVelocity;
 
-                // Anti-Windup for Rapid Fire:
-                // 1. Only accumulate integral within iZone (±20 RPM of target)
-                // 2. Dump integral sum whenever current speed reaches or exceeds target RPM
-                if (currentRPM >= targetRPM || Math.abs(rpmError) > iZoneRPM) {
-                    integralSum = 0.0;
-                } else {
-                    integralSum += error * dt;
-                    if (kI > 0) {
-                        double maxIntegralTerm = maxI / kI;
-                        integralSum = Math.max(-maxIntegralTerm, Math.min(maxIntegralTerm, integralSum));
-                    }
+                // Integral accumulation with anti-windup clamping
+                integralSum += error * dt;
+                if (kI > 0) {
+                    double maxIntegralTerm = maxI / kI;
+                    integralSum = Math.max(-maxIntegralTerm, Math.min(maxIntegralTerm, integralSum));
                 }
 
                 // Derivative calculation
@@ -253,8 +246,8 @@ public class TurretShooterSubsystem extends SubsystemBase {
                 double unclampedPower = pidOutput + feedForward;
                 power = Math.max(-1.0, Math.min(1.0, unclampedPower));
 
-                // Fallback: Ensure motor receives power if calculation yields NaN
-                if (Double.isNaN(power)) {
+                // Fallback: Ensure motor receives power when target is set even if calculation yields low/NaN power
+                if (Double.isNaN(power) || (power <= 0.05 && targetVelocity > 0)) {
                     power = 0.5;
                 }
             }

@@ -16,10 +16,10 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  */
 public class FlowerSubsystem extends SubsystemBase {
 
-    // Servo positions & direction (0.55 = UP/Raised rest state, 0.00 = DOWN/Lowered state)
+    // Servo positions & direction (0.55 = UP/Raised rest state, -0.01 = DOWN/Lowered state ~3° higher to prevent ground scraping)
     public static Servo.Direction SERVO_DIRECTION = Servo.Direction.FORWARD;
-    public static double POS_0_DEG  = 0.55; // UP / Raised position
-    public static double POS_90_DEG = 0.00; // DOWN / Lowered position (~10° below horizontal)
+    public static double POS_0_DEG  = 0.55;  // UP / Raised position
+    public static double POS_90_DEG = -0.02; // DOWN / Lowered position (~3° higher than previous -0.03)
 
     private final Servo flowerServo;
     private final Telemetry telemetry;
@@ -36,7 +36,7 @@ public class FlowerSubsystem extends SubsystemBase {
 
         if (flowerServo != null) {
             if (flowerServo instanceof ServoImplEx) {
-                ((ServoImplEx) flowerServo).setPwmRange(new PwmControl.PwmRange(500, 2500));
+                ((ServoImplEx) flowerServo).setPwmRange(new PwmControl.PwmRange(450, 2500));
             }
             flowerServo.setDirection(SERVO_DIRECTION);
             flowerServo.setPosition(POS_0_DEG);
@@ -55,12 +55,12 @@ public class FlowerSubsystem extends SubsystemBase {
     }
 
     /**
-     * Lower flower servo DOWN to intake flower (0.00).
+     * Lower flower servo DOWN to intake flower (-0.01 ~3° higher above floor).
      */
     public void setAngle90() {
         is90Deg = true;
         if (flowerServo != null) {
-            flowerServo.setPosition(Math.max(0.0, Math.min(1.0, POS_90_DEG)));
+            flowerServo.setPosition(Math.max(-0.1, Math.min(1.0, POS_90_DEG)));
         }
     }
 

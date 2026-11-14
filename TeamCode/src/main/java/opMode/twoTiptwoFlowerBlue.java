@@ -57,13 +57,13 @@ public class twoTiptwoFlowerBlue extends OpMode {
     private final PoseFactory poseFactory = PoseFactory.degrees().mirrorX(72.0);
 
     private final Pose startPose     = poseFactory.of(56.0, 8.0, 90.0);
-    private final Pose path1End      = poseFactory.of(12.2956, 47.7038, 180.0);
+    private final Pose path1End      = poseFactory.of(10.5, 47.7038, 180.0); // Deeper entry into Flower 1
     private final Pose path1Control1 = poseFactory.of(51.7088, 48.0897, 0.0);
 
     private final Pose point2End      = poseFactory.of(48.7992, 111.7742, -90.0);
     private final Pose point2Control1 = poseFactory.of(27.2544, 111.1159, 0.0);
 
-    private final Pose point3End      = poseFactory.of(48.239, 128.3557, 90.0);
+    private final Pose point3End      = poseFactory.of(48.239, 130.5, 90.0); // Deeper entry into Flower 2
     private final Pose point3Control1 = poseFactory.of(53.1541, 119.7052, 0.0);
 
     private final Pose point4End      = poseFactory.of(9.7436, 117.5334, 0.0);
@@ -149,9 +149,6 @@ public class twoTiptwoFlowerBlue extends OpMode {
         follower.update();
         autonomousPathUpdate();
 
-        // Continuous turret goal tracking as robot moves in autonomous
-        trackGoalAndAim();
-
         // 3. Update mechanism periodic loops
         flowerSubsystem.periodic();
         intakeSubsystem.periodic();
@@ -196,9 +193,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case SHOOT_INITIAL_LOAD:
-                // 1. Initial Start: Auto-aim turret at Blue Goal and shoot full load
+                // 1. Initial Start: Lower flower mech DOWN, auto-aim turret at Blue Goal and shoot
+                flowerSubsystem.setAngle90();
                 trackGoalAndAim();
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.spinProportional(0.75);
                 intakeSubsystem.spinIn(1.0);
 
                 if (stateTimer.milliseconds() >= INITIAL_SHOOT_DURATION_MS) {
@@ -210,10 +208,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case PATH_1:
-                // Pre-deploy flower servo & start intake while driving Path 1
+                // Pre-deploy flower servo & start intake while driving Path 1 (transfer stopped)
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.stop();
 
                 if (!follower.isBusy() || follower.atParametricEnd()) {
                     setPathState(PathState.INTAKE_FLOWER_1_LOWER);
@@ -221,10 +219,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case INTAKE_FLOWER_1_LOWER:
-                // 2. End of Path 1: Continue intake at Flower 1 position
+                // 2. End of Path 1: Continue intake at Flower 1 position (transfer stopped)
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.stop();
 
                 if (stateTimer.milliseconds() >= FLOWER_INTAKE_DURATION_MS) {
                     setPathState(PathState.INTAKE_FLOWER_1_RAISE);
@@ -232,7 +230,7 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case INTAKE_FLOWER_1_RAISE:
-                // Lift Flower Servo 90° CW back up & stop intake
+                // Lift Flower Servo back up & stop intake
                 flowerSubsystem.setAngle0();
                 intakeSubsystem.stop();
                 transferSubsystem.stop();
@@ -249,9 +247,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case SHOOT_PATH2_LOAD:
-                // 3. End of Path 2: Auto-aim turret at Blue Goal and shoot full load
+                // 3. End of Path 2: Lower flower mech DOWN, auto-aim turret at Blue Goal and shoot
+                flowerSubsystem.setAngle90();
                 trackGoalAndAim();
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.spinProportional(0.75);
                 intakeSubsystem.spinIn(1.0);
 
                 if (stateTimer.milliseconds() >= SHOOT_DURATION_MS) {
@@ -263,10 +262,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case PATH_3:
-                // Pre-deploy flower servo & start intake while driving Path 3
+                // Pre-deploy flower servo & start intake while driving Path 3 (transfer stopped)
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.stop();
 
                 if (!follower.isBusy() || follower.atParametricEnd()) {
                     setPathState(PathState.INTAKE_FLOWER_2_LOWER);
@@ -274,10 +273,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case INTAKE_FLOWER_2_LOWER:
-                // 4. End of Path 3: Continue intake at Flower 2 position
+                // 4. End of Path 3: Continue intake at Flower 2 position (transfer stopped)
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.stop();
 
                 if (stateTimer.milliseconds() >= FLOWER_INTAKE_DURATION_MS) {
                     setPathState(PathState.INTAKE_FLOWER_2_RAISE);
@@ -285,7 +284,7 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case INTAKE_FLOWER_2_RAISE:
-                // Lift Flower Servo 90° CW back up & stop intake
+                // Lift Flower Servo back up & stop intake
                 flowerSubsystem.setAngle0();
                 intakeSubsystem.stop();
                 transferSubsystem.stop();
@@ -296,9 +295,10 @@ public class twoTiptwoFlowerBlue extends OpMode {
                 break;
 
             case PATH_4_SHOOT_WHILE_MOVING:
-                // 5. Path 4: Auto-aim turret at Blue Goal and shoot while moving!
+                // 5. Path 4: Lower flower mech DOWN, auto-aim turret at Blue Goal and shoot while moving!
+                flowerSubsystem.setAngle90();
                 trackGoalAndAim();
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.spinProportional(0.75);
                 intakeSubsystem.spinIn(1.0);
 
                 if (!follower.isBusy() || follower.atParametricEnd()) {
@@ -327,7 +327,7 @@ public class twoTiptwoFlowerBlue extends OpMode {
             case PATH_1:
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.stop();
                 follower.follow(path1);
                 break;
             case PATH_2:
@@ -336,7 +336,7 @@ public class twoTiptwoFlowerBlue extends OpMode {
             case PATH_3:
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
-                transferSubsystem.spinProportional(1.0);
+                transferSubsystem.stop();
                 follower.follow(path3);
                 break;
             case PATH_4_SHOOT_WHILE_MOVING:

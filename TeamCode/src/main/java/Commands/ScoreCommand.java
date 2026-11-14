@@ -102,8 +102,8 @@ public class ScoreCommand extends CommandBase {
                 break;
 
             case FEEDING:
-                // Full-power feed into flywheel
-                transferSubsystem.spinProportional(1.0);
+                // 75% power feed into flywheel for smooth rapid firing
+                transferSubsystem.spinProportional(0.75);
 
                 if (elapsedMs >= FEED_MS) {
                     advanceTo(Phase.POST_SHOT);

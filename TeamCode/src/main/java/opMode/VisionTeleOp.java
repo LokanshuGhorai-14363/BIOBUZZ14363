@@ -190,16 +190,18 @@ public abstract class VisionTeleOp extends CommandOpMode {
             intakeSubsystem.stop();
         });
 
-        // ── B Button (Shoot Button): Intake + Transfer + Shooter Flywheel ──────
+        // ── B Button (Shoot Button): Lower Flower Mech + Intake + Transfer + Shooter Flywheel ──
         new GamepadButton(driverGamepad, GamepadKeys.Button.B)
                 .whileHeld(() -> {
                     if (!turretShooterSubsystem.isSpinning()) {
                         spinUpFlywheelGuaranteed();
                     }
+                    flowerSubsystem.setAngle90();
                     intakeSubsystem.spinIn(1.0);
-                    transferSubsystem.spinProportional(1.0);
+                    transferSubsystem.spinProportional(0.75);
                 })
                 .whenReleased(() -> {
+                    flowerSubsystem.setAngle0();
                     intakeSubsystem.stop();
                     transferSubsystem.stop();
                 });
@@ -225,19 +227,19 @@ public abstract class VisionTeleOp extends CommandOpMode {
         new GamepadButton(coDriverGamepad, GamepadKeys.Button.A)
                 .whenPressed(() -> manualTurretMode = !manualTurretMode);
 
-        // Right Bumper: Increase shooter flywheel velocity target (+150 RPM / +70.0 ticks/sec)
+        // Right Bumper: Increase shooter flywheel velocity target (+100 ticks/sec ~ +215 RPM)
         new GamepadButton(coDriverGamepad, GamepadKeys.Button.RIGHT_BUMPER)
                 .whenPressed(() -> {
                     double currentVel = turretShooterSubsystem.getTargetVelocity();
-                    double newVel = (currentVel <= 0) ? TurretShooterSubsystem.outtakeVelocityShort : currentVel + 70.0;
+                    double newVel = (currentVel <= 0) ? TurretShooterSubsystem.outtakeVelocityShort : currentVel + 100.0;
                     turretShooterSubsystem.setTargetVelocity(newVel);
                 });
 
-        // Left Bumper: Decrease shooter flywheel velocity target (-150 RPM / -70.0 ticks/sec)
+        // Left Bumper: Decrease shooter flywheel velocity target (-100 ticks/sec ~ -215 RPM)
         new GamepadButton(coDriverGamepad, GamepadKeys.Button.LEFT_BUMPER)
                 .whenPressed(() -> {
                     double currentVel = turretShooterSubsystem.getTargetVelocity();
-                    double newVel = Math.max(0.0, currentVel - 70.0);
+                    double newVel = Math.max(0.0, currentVel - 100.0);
                     turretShooterSubsystem.setTargetVelocity(newVel);
                 });
     }
@@ -267,8 +269,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
             hub.clearBulkCache();
         }
 
-        // 2. Update Pinpoint odometry and Goal Tracker at top of loop frame for zero-latency turret aiming
-        driveSubsystem.periodic();
+        // 2. Fetch fresh robot pose from driveSubsystem at the top of main periodic loop
         Pose currentPose = driveSubsystem.getPose();
         if (goalTracker != null) {
             goalTracker.update(currentPose);

@@ -119,8 +119,7 @@ public class DriveSubsystem extends SubsystemBase {
             fieldY = -strafe;
         }
 
-        // Relative heading w.r.t driver starting perspective
-        double heading = getHeading() - headingOffset;
+        double heading = getHeading();
         double cos = Math.cos(heading);
         double sin = Math.sin(heading);
 
@@ -161,11 +160,16 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     /**
-     * Resets the driver heading reference to the robot's current orientation.
+     * Resets the Pinpoint IMU heading reference to match starting alliance orientation (90°).
+     * Robot must be facing in its starting orientation when pressed.
      */
     public void resetHeading() {
         pinpoint.update();
-        headingOffset = currentPose.heading();
+        double heading = Math.toRadians(90.0);
+        setPose(new Pose(
+                pinpoint.getPosX(DistanceUnit.INCH),
+                pinpoint.getPosY(DistanceUnit.INCH),
+                heading));
     }
 
     /**
@@ -201,7 +205,6 @@ public class DriveSubsystem extends SubsystemBase {
     public void setPose(Pose pose) {
         pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, pose.x(), pose.y(), AngleUnit.RADIANS, pose.heading()));
         currentPose = pose;
-        headingOffset = pose.heading();
     }
 
     public void resumeTeleOp() {

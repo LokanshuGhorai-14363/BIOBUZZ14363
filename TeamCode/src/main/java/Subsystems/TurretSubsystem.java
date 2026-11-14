@@ -20,13 +20,13 @@ public class TurretSubsystem extends SubsystemBase {
     private final Servo turretServo;
     private final Telemetry telemetry;
 
-    // Constants for physical turret sweep limits [0°, 200°]
-    public static final double MIN_ANGLE_DEG     = 0.0;     // Full Left (0.00 position / 500 µs)
-    public static final double MAX_ANGLE_DEG     = 200.0;   // Full Right (1.00 position / 2500 µs)
-    public static final double INITIAL_ANGLE_DEG = 100.0;   // Straight forward center (0.50 position / 1500 µs)
+    // Constants for physical turret sweep limits
+    public static final double MIN_ANGLE_DEG = 0.0;     // 100° Left of center
+    public static final double MAX_ANGLE_DEG = 200.0;   // 100° Right of center
+    public static final double INITIAL_ANGLE_DEG = 100.0; // Straight forward center
 
-    // Range of motion scaling across 500µs - 2500µs PWM (200.0° maps 0°..200° 1:1 across 0.0..1.0 range)
-    public static double SERVO_PHYSICAL_RANGE_DEG = 200.0;
+    // Axon MAX Mark 2 Servo physical rotation range across 500µs - 2500µs
+    public static double SERVO_PHYSICAL_RANGE_DEG = 355.0;
 
     /**
      * TURRET GEAR RATIO = (Turret Gear Teeth / Servo Gear Teeth)
