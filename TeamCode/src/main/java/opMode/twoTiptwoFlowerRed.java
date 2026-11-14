@@ -75,8 +75,8 @@ public class twoTiptwoFlowerRed extends OpMode {
     private final Pose point3End      = poseFactory.of(48.239, 130.5, 90.0); // Deeper entry into Flower 2
     private final Pose point3Control1 = poseFactory.of(53.1541, 119.7052, 0.0);
 
-    private final Pose point4End      = poseFactory.of(9.7436, 117.5334, 0.0);
-    private final Pose point4Control1 = poseFactory.of(61.3718, 100.8893, 0.0);
+    private final Pose point4End      = poseFactory.of(9.7436, 117.5334, 180.0); // Facing 180° towards HIVE Goal on Path 4
+    private final Pose point4Control1 = poseFactory.of(61.3718, 100.8893, 180.0);
 
     // ── Trajectory Paths ──────────────────────────────────────────────────────
     private Path path1;
@@ -96,7 +96,8 @@ public class twoTiptwoFlowerRed extends OpMode {
         PATH_3,
         INTAKE_FLOWER_2_LOWER,
         INTAKE_FLOWER_2_RAISE,
-        PATH_4_SHOOT_WHILE_MOVING,
+        PATH_4,
+        SHOOT_PATH4_LOAD,
         PARKED
     }
 
@@ -202,9 +203,10 @@ public class twoTiptwoFlowerRed extends OpMode {
                 break;
 
             case SHOOT_INITIAL_LOAD:
-                // 1. Initial Start: Lower flower mech DOWN, auto-aim turret at Red Goal and shoot
+                // 1. Initial Start: Lower flower mech DOWN, hold turret FIXED at 100° center (no turret movement) and shoot
                 flowerSubsystem.setAngle90();
-                trackGoalAndAim();
+                turretSubsystem.setAngle(TurretSubsystem.INITIAL_ANGLE_DEG);
+                turretShooterSubsystem.setTargetVelocity(TurretShooterSubsystem.outtakeVelocityShort);
                 transferSubsystem.spinProportional(0.75);
                 intakeSubsystem.spinIn(1.0);
 
@@ -299,18 +301,28 @@ public class twoTiptwoFlowerRed extends OpMode {
                 transferSubsystem.stop();
 
                 if (stateTimer.milliseconds() >= SERVO_RAISE_DURATION_MS) {
-                    setPathState(PathState.PATH_4_SHOOT_WHILE_MOVING);
+                    setPathState(PathState.PATH_4);
                 }
                 break;
 
-            case PATH_4_SHOOT_WHILE_MOVING:
-                // 5. Path 4: Lower flower mech DOWN, auto-aim turret at Red Goal and shoot while moving!
+            case PATH_4:
+                // Drive Path 4 to point4End without shooting
+                if (!follower.isBusy() || follower.atParametricEnd()) {
+                    setPathState(PathState.SHOOT_PATH4_LOAD);
+                }
+                break;
+
+            case SHOOT_PATH4_LOAD:
+                // 5. Stationary at point4End: Lower flower mech DOWN, auto-aim turret at Red Goal and shoot!
                 flowerSubsystem.setAngle90();
                 trackGoalAndAim();
                 transferSubsystem.spinProportional(0.75);
                 intakeSubsystem.spinIn(1.0);
 
-                if (!follower.isBusy() || follower.atParametricEnd()) {
+                if (stateTimer.milliseconds() >= SHOOT_DURATION_MS) {
+                    intakeSubsystem.stop();
+                    transferSubsystem.stop();
+                    turretShooterSubsystem.stop();
                     setPathState(PathState.PARKED);
                 }
                 break;
@@ -348,7 +360,7 @@ public class twoTiptwoFlowerRed extends OpMode {
                 transferSubsystem.stop();
                 follower.follow(path3);
                 break;
-            case PATH_4_SHOOT_WHILE_MOVING:
+            case PATH_4:
                 follower.follow(path4);
                 break;
             default:

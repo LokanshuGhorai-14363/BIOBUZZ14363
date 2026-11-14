@@ -29,11 +29,10 @@ public class TurretSubsystem extends SubsystemBase {
     public static double SERVO_PHYSICAL_RANGE_DEG = 355.0;
 
     /**
-     * TURRET GEAR RATIO = (Turret Gear Teeth / Servo Gear Teeth)
-     * Example: 60-tooth turret ring gear driven by a 20-tooth servo gear -> Ratio = 3.0.
-     * If direct drive (1:1), set to 1.0.
+     * TURRET GEAR RATIO = (Turret Ring Gear Teeth / Servo Gear Teeth)
+     * Calibrated to 2.10526 so a 200° command rotates the physical turret a full 200° (200 / 95 = 2.10526).
      */
-    public static double TURRET_GEAR_RATIO = 1.0;
+    public static double TURRET_GEAR_RATIO = 2.10526;
 
     /**
      * SERVO CENTER POSITION (0.0 to 1.0)
