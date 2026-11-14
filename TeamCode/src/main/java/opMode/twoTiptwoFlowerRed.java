@@ -69,14 +69,14 @@ public class twoTiptwoFlowerRed extends OpMode {
     private final Pose path1End      = poseFactory.of(12.2956, 47.7038, 180.0);
     private final Pose path1Control1 = poseFactory.of(51.7088, 48.0897, 0.0);
 
-    private final Pose point2End      = poseFactory.of(57.0636, 113.1144, -90.0);
+    private final Pose point2End      = poseFactory.of(48.7992, 111.7742, -90.0);
     private final Pose point2Control1 = poseFactory.of(27.2544, 111.1159, 0.0);
 
-    private final Pose point3End      = poseFactory.of(47.1223, 131.5945, 90.0);
-    private final Pose point3Control1 = poseFactory.of(46.6766, 104.0698, 0.0);
+    private final Pose point3End      = poseFactory.of(48.239, 128.3557, 90.0);
+    private final Pose point3Control1 = poseFactory.of(53.1541, 119.7052, 0.0);
 
-    private final Pose point4End      = poseFactory.of(9.9670, 105.9185, 0.0);
-    private final Pose point4Control1 = poseFactory.of(79.0174, 94.3001, 0.0);
+    private final Pose point4End      = poseFactory.of(9.7436, 117.5334, 0.0);
+    private final Pose point4Control1 = poseFactory.of(61.3718, 100.8893, 0.0);
 
     // ── Trajectory Paths ──────────────────────────────────────────────────────
     private Path path1;
@@ -216,13 +216,18 @@ public class twoTiptwoFlowerRed extends OpMode {
                 break;
 
             case PATH_1:
+                // Pre-deploy flower servo & start intake while driving Path 1
+                flowerSubsystem.setAngle90();
+                intakeSubsystem.spinIn(1.0);
+                transferSubsystem.spinProportional(1.0);
+
                 if (!follower.isBusy() || follower.atParametricEnd()) {
                     setPathState(PathState.INTAKE_FLOWER_1_LOWER);
                 }
                 break;
 
             case INTAKE_FLOWER_1_LOWER:
-                // 2. End of Path 1: Deploy Flower Servo 90° CCW and run intake
+                // 2. End of Path 1: Continue intake at Flower 1 position
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
                 transferSubsystem.spinProportional(1.0);
@@ -264,13 +269,18 @@ public class twoTiptwoFlowerRed extends OpMode {
                 break;
 
             case PATH_3:
+                // Pre-deploy flower servo & start intake while driving Path 3
+                flowerSubsystem.setAngle90();
+                intakeSubsystem.spinIn(1.0);
+                transferSubsystem.spinProportional(1.0);
+
                 if (!follower.isBusy() || follower.atParametricEnd()) {
                     setPathState(PathState.INTAKE_FLOWER_2_LOWER);
                 }
                 break;
 
             case INTAKE_FLOWER_2_LOWER:
-                // 4. End of Path 3: Deploy Flower Servo 90° CCW and run intake
+                // 4. End of Path 3: Continue intake at Flower 2 position
                 flowerSubsystem.setAngle90();
                 intakeSubsystem.spinIn(1.0);
                 transferSubsystem.spinProportional(1.0);
@@ -321,12 +331,18 @@ public class twoTiptwoFlowerRed extends OpMode {
 
         switch (newState) {
             case PATH_1:
+                flowerSubsystem.setAngle90();
+                intakeSubsystem.spinIn(1.0);
+                transferSubsystem.spinProportional(1.0);
                 follower.follow(path1);
                 break;
             case PATH_2:
                 follower.follow(path2);
                 break;
             case PATH_3:
+                flowerSubsystem.setAngle90();
+                intakeSubsystem.spinIn(1.0);
+                transferSubsystem.spinProportional(1.0);
                 follower.follow(path3);
                 break;
             case PATH_4_SHOOT_WHILE_MOVING:

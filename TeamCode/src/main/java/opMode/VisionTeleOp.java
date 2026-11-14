@@ -175,18 +175,20 @@ public abstract class VisionTeleOp extends CommandOpMode {
                 })
                 .whenInactive(() -> intakeSubsystem.stop());
 
-        // ── Right Trigger: Just Flower Servo + Intake ─────────────────────────
+        // ── Right Trigger: Flower Servo (-5.1) + Intake while held ────────────
         Trigger rightTrigger = new Trigger(() -> driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) > 0.05
                                              || gamepad1.right_trigger > 0.05);
-
-        rightTrigger.whenActive(flowerSubsystem::toggle);
 
         rightTrigger.whileActiveContinuous(() -> {
             double triggerVal = Math.max(driverGamepad.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER), gamepad1.right_trigger);
             double power = (triggerVal > 0.05) ? Math.max(0.75, triggerVal) : 1.0;
+            flowerSubsystem.setAngle90();
             intakeSubsystem.spinIn(power);
         })
-        .whenInactive(() -> intakeSubsystem.stop());
+        .whenInactive(() -> {
+            flowerSubsystem.setAngle0();
+            intakeSubsystem.stop();
+        });
 
         // ── B Button (Shoot Button): Intake + Transfer + Shooter Flywheel ──────
         new GamepadButton(driverGamepad, GamepadKeys.Button.B)
