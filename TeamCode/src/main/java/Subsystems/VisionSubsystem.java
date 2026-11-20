@@ -37,8 +37,10 @@ public class VisionSubsystem extends SubsystemBase {
     public static final double ROBOT_LENGTH_INCHES = 14.5;
 
     // ────────────────────────── Starting & Relocalize Poses ──────────────────
-    public static final Pose RED_START_POSE = new Pose(72.0, 72.0, Math.toRadians(90.0));
-    public static final Pose BLUE_START_POSE = new Pose(72.0, 72.0, Math.toRadians(90.0));
+    // Red starts on Red side of field (Y < 60") facing downfield toward Red Hives (+Y = 90°)
+    public static final Pose RED_START_POSE = new Pose(72.0, 12.0, Math.toRadians(90.0));
+    // Blue starts on Blue side of field (Y > 84") facing downfield toward Blue Hives (-Y = 270°)
+    public static final Pose BLUE_START_POSE = new Pose(72.0, 132.0, Math.toRadians(270.0));
     public static final Pose RED_GARDEN_RELOCALIZE_POSE = new Pose(0.0, 0.0, Math.toRadians(90.0));
     public static final Pose BLUE_GARDEN_RELOCALIZE_POSE = new Pose(144.0, 144.0, Math.toRadians(270.0));
     public static final Pose TOP_LEFT_RELOCALIZE_POSE = new Pose(132.0, 12.0, Math.toRadians(180.0));
@@ -46,8 +48,8 @@ public class VisionSubsystem extends SubsystemBase {
     // Turret Zero / Center Offset in degrees (100.0° points straight forward relative to robot)
     public static double TURRET_ZERO_OFFSET_DEG = 100.0;
 
-    // Invert turret rotation direction if servo turns CW instead of CCW
-    public static boolean INVERT_TURRET_DIRECTION = false;
+    // MUST be true so +CCW relative angle (target to left) turns turret left (< 100°)
+    public static boolean INVERT_TURRET_DIRECTION = true;
 
     public VisionSubsystem(HardwareMap hardwareMap, Telemetry telemetry, 
                            TurretSubsystem turretSubsystem, DriveSubsystem driveSubsystem) {

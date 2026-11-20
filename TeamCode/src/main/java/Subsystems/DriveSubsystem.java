@@ -165,7 +165,8 @@ public class DriveSubsystem extends SubsystemBase {
      */
     public void resetHeading() {
         pinpoint.update();
-        double heading = Math.toRadians(90.0);
+        // Facing downfield: Red faces +Y (90°), Blue faces -Y (270°)
+        double heading = (currentAlliance == Alliance.RED) ? Math.toRadians(90.0) : Math.toRadians(270.0);
         setPose(new Pose(
                 pinpoint.getPosX(DistanceUnit.INCH),
                 pinpoint.getPosY(DistanceUnit.INCH),
