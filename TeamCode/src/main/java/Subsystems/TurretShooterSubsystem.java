@@ -10,8 +10,14 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 /**
- * TurretShooterSubsystem — Controls the flywheel shooter motor.
+ * TurretShooterSubsystem — Controls the dual-motor flywheel shooter mechanism.
  * Designed for the 2026-2027 BIOBUZZ game pieces (Pollen & Nectar).
+ *
+ * <h3>Hardware Configuration</h3>
+ * <ul>
+ *   <li>{@code shooterMotor1} — Primary dual-flywheel motor ("shooterMotor1" or fallback "shooterMotor").</li>
+ *   <li>{@code shooterMotor2} — Secondary dual-flywheel motor ("shooterMotor2").</li>
+ * </ul>
  */
 public class TurretShooterSubsystem extends SubsystemBase {
 
@@ -19,6 +25,10 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static final double MOTOR_MAX_RPM         = 6000.0;
     public static final double ENCODER_TICKS_PER_REV = 28.0;
     public static final double RPM_TOLERANCE         = 50.0;
+
+    // ── Motor Directions ──────────────────────────────────────────────────────
+    public static DcMotorSimple.Direction MOTOR_1_DIRECTION = DcMotorSimple.Direction.FORWARD;
+    public static DcMotorSimple.Direction MOTOR_2_DIRECTION = DcMotorSimple.Direction.FORWARD;
 
     // ── PID & Feedforward Coefficients ───────────────────────────────────────
     public static double kP   = 0.0015;
@@ -54,7 +64,8 @@ public class TurretShooterSubsystem extends SubsystemBase {
     }
 
     // ── Hardware & State ──────────────────────────────────────────────────────
-    private final DcMotorEx shooterMotor;
+    private final DcMotorEx shooterMotor1;
+    private final DcMotorEx shooterMotor2;
     private final Telemetry telemetry;
 
     private ShooterState state = ShooterState.IDLE;
@@ -67,17 +78,42 @@ public class TurretShooterSubsystem extends SubsystemBase {
     private boolean isRecoveryActive = false;
 
     public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
-        this(hardwareMap, telemetry, "shooterMotor");
+        this(hardwareMap, telemetry, "shooterMotor1", "shooterMotor2");
     }
 
-    public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry, String motorName) {
+    public TurretShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry, String motor1Name, String motor2Name) {
         this.telemetry = telemetry;
 
-        shooterMotor = hardwareMap.get(DcMotorEx.class, motorName);
-        if (shooterMotor != null) {
-            shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
-            shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        // Try primary motor1Name (fallback to legacy "shooterMotor" if "shooterMotor1" is absent)
+        DcMotorEx m1 = null;
+        try {
+            m1 = hardwareMap.get(DcMotorEx.class, motor1Name);
+        } catch (Exception e) {
+            try {
+                m1 = hardwareMap.get(DcMotorEx.class, "shooterMotor");
+            } catch (Exception ignored) {}
+        }
+        this.shooterMotor1 = m1;
+
+        // Try motor2Name ("shooterMotor2")
+        DcMotorEx m2 = null;
+        try {
+            m2 = hardwareMap.get(DcMotorEx.class, motor2Name);
+        } catch (Exception ignored) {}
+        this.shooterMotor2 = m2;
+
+        // Configure Motor 1
+        if (shooterMotor1 != null) {
+            shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            shooterMotor1.setDirection(MOTOR_1_DIRECTION);
+            shooterMotor1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        }
+
+        // Configure Motor 2
+        if (shooterMotor2 != null) {
+            shooterMotor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            shooterMotor2.setDirection(MOTOR_2_DIRECTION);
+            shooterMotor2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
         lastTimeNanos = System.nanoTime();
@@ -128,9 +164,8 @@ public class TurretShooterSubsystem extends SubsystemBase {
         this.lastError = 0.0;
         this.isRecoveryActive = false;
         this.state = ShooterState.IDLE;
-        if (shooterMotor != null) {
-            shooterMotor.setPower(0.0);
-        }
+        if (shooterMotor1 != null) shooterMotor1.setPower(0.0);
+        if (shooterMotor2 != null) shooterMotor2.setPower(0.0);
     }
 
     // ───────────────────────────── Accessors & Encoder Readers ────────────────
@@ -160,15 +195,27 @@ public class TurretShooterSubsystem extends SubsystemBase {
     }
 
     public int getRawEncoderPosition() {
-        return (shooterMotor != null) ? shooterMotor.getCurrentPosition() : 0;
+        if (shooterMotor1 != null) return shooterMotor1.getCurrentPosition();
+        if (shooterMotor2 != null) return shooterMotor2.getCurrentPosition();
+        return 0;
     }
 
     public double getAngularVelocityDegPerSec() {
-        return (shooterMotor != null) ? shooterMotor.getVelocity(AngleUnit.DEGREES) : 0.0;
+        if (shooterMotor1 != null) return shooterMotor1.getVelocity(AngleUnit.DEGREES);
+        if (shooterMotor2 != null) return shooterMotor2.getVelocity(AngleUnit.DEGREES);
+        return 0.0;
+    }
+
+    public double getMotor1Power() {
+        return (shooterMotor1 != null) ? shooterMotor1.getPower() : 0.0;
+    }
+
+    public double getMotor2Power() {
+        return (shooterMotor2 != null) ? shooterMotor2.getPower() : 0.0;
     }
 
     public double getMotorPower() {
-        return (shooterMotor != null) ? shooterMotor.getPower() : 0.0;
+        return getMotor1Power();
     }
 
     public ShooterState getState() {
@@ -183,7 +230,7 @@ public class TurretShooterSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
-        if (shooterMotor == null) return;
+        if (shooterMotor1 == null && shooterMotor2 == null) return;
 
         long nowNanos = System.nanoTime();
         double rawDt = (nowNanos - lastTimeNanos) / 1e9;
@@ -191,16 +238,19 @@ public class TurretShooterSubsystem extends SubsystemBase {
         lastTimeNanos = nowNanos;
 
         if (!isSpinning || targetVelocity <= 0) {
-            shooterMotor.setPower(0.0);
+            if (shooterMotor1 != null) shooterMotor1.setPower(0.0);
+            if (shooterMotor2 != null) shooterMotor2.setPower(0.0);
             integralSum = 0.0;
             lastError = 0.0;
             isRecoveryActive = false;
             state = ShooterState.IDLE;
         } else {
-            // Read raw motor encoder velocity (ticks/second)
+            // Read raw motor encoder velocity (ticks/second) from available motor
             try {
-                double vel = shooterMotor.getVelocity();
-                currentVelocity = Double.isNaN(vel) ? 0.0 : Math.abs(vel);
+                double vel1 = (shooterMotor1 != null) ? shooterMotor1.getVelocity() : Double.NaN;
+                double vel2 = (shooterMotor2 != null) ? shooterMotor2.getVelocity() : Double.NaN;
+                double vel = !Double.isNaN(vel1) ? vel1 : (!Double.isNaN(vel2) ? vel2 : 0.0);
+                currentVelocity = Math.abs(vel);
             } catch (Exception e) {
                 currentVelocity = 0.0;
             }
@@ -216,27 +266,23 @@ public class TurretShooterSubsystem extends SubsystemBase {
             }
 
             // Rapid Post-Shot Recovery / Bang-Bang Boost Check:
-            // When current RPM drops significantly below target RPM (e.g. immediately after a shot),
-            // apply maximum motor power (1.0) to achieve the fastest possible physical recovery.
             isRecoveryActive = useRecoveryBoost && (rpmError > recoveryThresholdRPM);
 
             double power;
             if (isRecoveryActive) {
                 power = Math.signum(targetVelocity) * recoveryPower;
-                integralSum = 0.0; // Reset integral accumulation during maximum boost phase
+                integralSum = 0.0;
                 lastError = targetVelocity - currentVelocity;
             } else {
                 // Standard PID error calculation (in ticks/sec)
                 double error = targetVelocity - currentVelocity;
 
-                // Integral accumulation with anti-windup clamping
                 integralSum += error * dt;
                 if (kI > 0) {
                     double maxIntegralTerm = maxI / kI;
                     integralSum = Math.max(-maxIntegralTerm, Math.min(maxIntegralTerm, integralSum));
                 }
 
-                // Derivative calculation
                 double derivative = (error - lastError) / dt;
                 lastError = error;
 
@@ -246,21 +292,24 @@ public class TurretShooterSubsystem extends SubsystemBase {
                 double unclampedPower = pidOutput + feedForward;
                 power = Math.max(-1.0, Math.min(1.0, unclampedPower));
 
-                // Fallback: Ensure motor receives power when target is set even if calculation yields low/NaN power
                 if (Double.isNaN(power) || (power <= 0.05 && targetVelocity > 0)) {
                     power = 0.5;
                 }
             }
 
-            shooterMotor.setPower(power);
+            // Command power to both dual flywheel motors
+            if (shooterMotor1 != null) shooterMotor1.setPower(power);
+            if (shooterMotor2 != null) shooterMotor2.setPower(power);
         }
 
         if (telemetry != null) {
-            telemetry.addData("Shooter Motor Found", (shooterMotor != null));
+            telemetry.addData("Shooter Motor 1 Found", (shooterMotor1 != null));
+            telemetry.addData("Shooter Motor 2 Found", (shooterMotor2 != null));
             telemetry.addData("Shooter Spinning Flag", isSpinning);
             telemetry.addData("Shooter State", state);
             telemetry.addData("Shooter Recovery Active", isRecoveryActive);
-            telemetry.addData("Shooter Power", (shooterMotor != null) ? shooterMotor.getPower() : 0.0);
+            telemetry.addData("Shooter Motor 1 Power", (shooterMotor1 != null) ? shooterMotor1.getPower() : 0.0);
+            telemetry.addData("Shooter Motor 2 Power", (shooterMotor2 != null) ? shooterMotor2.getPower() : 0.0);
             telemetry.addData("Shooter Target RPM", getTargetRPM());
             telemetry.addData("Shooter Current RPM", getCurrentRPM());
         }
