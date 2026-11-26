@@ -5,6 +5,7 @@ import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.bylazar.telemetry.Plugin;
 import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -24,6 +25,8 @@ import Subsystems.TurretSubsystem;
 import Subsystems.VisionSubsystem;
 import Subsystems.VisionSubsystem.Alliance;
 import util.HiveGoalTracker;
+import util.MultipleTelemetry;
+import util.PoseStorage;
 
 /**
  * <h1>ShooterTuningTeleOp</h1>
@@ -169,6 +172,14 @@ public class ShooterTuningTeleOp extends CommandOpMode {
     @Override
     public void initialize() {
         CommandScheduler.getInstance().reset();
+
+        try {
+            this.telemetry = new MultipleTelemetry(
+                    this.telemetry,
+                    Plugin.INSTANCE.getManager().getWrapper()
+            );
+        } catch (Throwable ignored) {}
+
         telemetry.setMsTransmissionInterval(20);
 
         // 1. Configure LynxModule manual bulk caching for highest loop rate
@@ -195,8 +206,8 @@ public class ShooterTuningTeleOp extends CommandOpMode {
         driveSubsystem.setAlliance(currentAlliance);
         goalTracker = visionSubsystem.getGoalTracker();
 
-        Pose startPose = (util.PoseStorage.currentPose != null)
-                ? util.PoseStorage.currentPose
+        Pose startPose = (PoseStorage.currentPose != null)
+                ? PoseStorage.currentPose
                 : visionSubsystem.getStartPose(currentAlliance);
         driveSubsystem.setPose(startPose);
         goalTracker.update(startPose);
@@ -257,6 +268,11 @@ public class ShooterTuningTeleOp extends CommandOpMode {
     @Override
     public void run() {
         loopTimer.reset();
+
+        try {
+            gamepad1.copy(com.bylazar.gamepad.Plugin.INSTANCE.getFirstManager().asCombinedFTCGamepad(gamepad1));
+            gamepad2.copy(com.bylazar.gamepad.Plugin.INSTANCE.getSecondManager().asCombinedFTCGamepad(gamepad2));
+        } catch (Throwable ignored) {}
 
         // 1. Clear LynxModule bulk cache at start of loop
         for (LynxModule hub : allHubs) {
