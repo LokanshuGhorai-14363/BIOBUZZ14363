@@ -9,14 +9,16 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
+import java.util.Locale;
+
 /**
  * TurretShooterSubsystem — Controls the dual-motor flywheel shooter mechanism.
  * Designed for the 2026-2027 BIOBUZZ game pieces (Pollen & Nectar).
  *
  * <h3>Hardware Configuration</h3>
  * <ul>
- *   <li>{@code shooterMotor1} — Primary dual-flywheel motor ("shooterMotor1" or fallback "shooterMotor").</li>
- *   <li>{@code shooterMotor2} — Secondary dual-flywheel motor ("shooterMotor2").</li>
+ *   <li>{@code shooterMotor1} — Primary flywheel motor ("shooterMotor1" or fallback "shooterMotor").</li>
+ *   <li>{@code shooterMotor2} — Secondary flywheel motor ("shooterMotor2") on opposite end of shaft.</li>
  * </ul>
  */
 public class TurretShooterSubsystem extends SubsystemBase {
@@ -27,8 +29,9 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static final double RPM_TOLERANCE         = 50.0;
 
     // ── Motor Directions ──────────────────────────────────────────────────────
+    // Motor 2 is physically mounted on the opposite end of the shaft, so it MUST be REVERSED in software.
     public static DcMotorSimple.Direction MOTOR_1_DIRECTION = DcMotorSimple.Direction.FORWARD;
-    public static DcMotorSimple.Direction MOTOR_2_DIRECTION = DcMotorSimple.Direction.FORWARD;
+    public static DcMotorSimple.Direction MOTOR_2_DIRECTION = DcMotorSimple.Direction.REVERSE;
 
     // ── PID & Feedforward Coefficients ───────────────────────────────────────
     public static double kP   = 0.0015;
@@ -71,6 +74,11 @@ public class TurretShooterSubsystem extends SubsystemBase {
     private ShooterState state = ShooterState.IDLE;
     private double targetVelocity = 0.0;  // Ticks per second
     private double currentVelocity = 0.0; // Ticks per second
+    private double motor1Velocity = 0.0;  // Ticks per second
+    private double motor2Velocity = 0.0;  // Ticks per second
+    private double motor1RPM = 0.0;
+    private double motor2RPM = 0.0;
+
     private double integralSum = 0.0;
     private double lastError = 0.0;
     private long lastTimeNanos = System.nanoTime();
@@ -187,7 +195,26 @@ public class TurretShooterSubsystem extends SubsystemBase {
     }
 
     public double getCurrentRPM() {
+        if (shooterMotor1 != null && shooterMotor2 != null) {
+            return (motor1RPM + motor2RPM) / 2.0;
+        } else if (shooterMotor1 != null) {
+            return motor1RPM;
+        } else if (shooterMotor2 != null) {
+            return motor2RPM;
+        }
         return (currentVelocity / ENCODER_TICKS_PER_REV) * 60.0;
+    }
+
+    public double getMotor1RPM() {
+        return motor1RPM;
+    }
+
+    public double getMotor2RPM() {
+        return motor2RPM;
+    }
+
+    public double getRPMDelta() {
+        return Math.abs(motor1RPM - motor2RPM);
     }
 
     public double getVelocityTicksPerSec() {
@@ -244,15 +271,38 @@ public class TurretShooterSubsystem extends SubsystemBase {
             lastError = 0.0;
             isRecoveryActive = false;
             state = ShooterState.IDLE;
+            motor1Velocity = 0.0;
+            motor2Velocity = 0.0;
+            motor1RPM = 0.0;
+            motor2RPM = 0.0;
+            currentVelocity = 0.0;
         } else {
-            // Read raw motor encoder velocity (ticks/second) from available motor
-            try {
-                double vel1 = (shooterMotor1 != null) ? shooterMotor1.getVelocity() : Double.NaN;
-                double vel2 = (shooterMotor2 != null) ? shooterMotor2.getVelocity() : Double.NaN;
-                double vel = !Double.isNaN(vel1) ? vel1 : (!Double.isNaN(vel2) ? vel2 : 0.0);
-                currentVelocity = Math.abs(vel);
-            } catch (Exception e) {
-                currentVelocity = 0.0;
+            // Read raw motor encoder velocities (ticks/second) from both motors
+            if (shooterMotor1 != null) {
+                try {
+                    motor1Velocity = shooterMotor1.getVelocity();
+                    motor1RPM = (motor1Velocity / ENCODER_TICKS_PER_REV) * 60.0;
+                } catch (Exception e) {
+                    motor1Velocity = 0.0;
+                    motor1RPM = 0.0;
+                }
+            }
+            if (shooterMotor2 != null) {
+                try {
+                    motor2Velocity = shooterMotor2.getVelocity();
+                    motor2RPM = (motor2Velocity / ENCODER_TICKS_PER_REV) * 60.0;
+                } catch (Exception e) {
+                    motor2Velocity = 0.0;
+                    motor2RPM = 0.0;
+                }
+            }
+
+            if (shooterMotor1 != null && shooterMotor2 != null) {
+                currentVelocity = (motor1Velocity + motor2Velocity) / 2.0;
+            } else if (shooterMotor1 != null) {
+                currentVelocity = motor1Velocity;
+            } else {
+                currentVelocity = motor2Velocity;
             }
 
             double currentRPM = getCurrentRPM();
@@ -303,15 +353,20 @@ public class TurretShooterSubsystem extends SubsystemBase {
         }
 
         if (telemetry != null) {
-            telemetry.addData("Shooter Motor 1 Found", (shooterMotor1 != null));
-            telemetry.addData("Shooter Motor 2 Found", (shooterMotor2 != null));
-            telemetry.addData("Shooter Spinning Flag", isSpinning);
+            telemetry.addData("Shooter M1 Found", (shooterMotor1 != null));
+            telemetry.addData("Shooter M2 Found", (shooterMotor2 != null));
             telemetry.addData("Shooter State", state);
-            telemetry.addData("Shooter Recovery Active", isRecoveryActive);
-            telemetry.addData("Shooter Motor 1 Power", (shooterMotor1 != null) ? shooterMotor1.getPower() : 0.0);
-            telemetry.addData("Shooter Motor 2 Power", (shooterMotor2 != null) ? shooterMotor2.getPower() : 0.0);
             telemetry.addData("Shooter Target RPM", getTargetRPM());
-            telemetry.addData("Shooter Current RPM", getCurrentRPM());
+            telemetry.addData("Shooter M1 RPM", String.format(Locale.US, "%.0f RPM", motor1RPM));
+            telemetry.addData("Shooter M2 RPM", String.format(Locale.US, "%.0f RPM", motor2RPM));
+            telemetry.addData("Shooter M1/M2 Delta", String.format(Locale.US, "%.0f RPM", getRPMDelta()));
+            if (shooterMotor1 != null && shooterMotor2 != null) {
+                if (motor1RPM * motor2RPM < -100) {
+                    telemetry.addLine("⚠️ WARNING: MOTORS FIGHTING! (Opposite rotation directions)");
+                } else if (getRPMDelta() > 300 && isSpinning) {
+                    telemetry.addLine("⚠️ WARNING: HIGH M1/M2 RPM DELTA! (Check shaft coupling)");
+                }
+            }
         }
     }
 }

@@ -35,6 +35,12 @@ public class DriveSubsystem extends SubsystemBase {
     private final DcMotorEx leftRear;
     private final DcMotorEx rightRear;
 
+    // Drivetrain motor power scalars to compensate for build tolerances & weight distribution
+    public static double LEFT_FRONT_SCALAR  = 1.0;
+    public static double RIGHT_FRONT_SCALAR = 1.0;
+    public static double LEFT_REAR_SCALAR   = 1.0;
+    public static double RIGHT_REAR_SCALAR  = 1.0;
+
     private Alliance currentAlliance = Alliance.RED;
 
     /**
@@ -131,13 +137,14 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     /**
-     * Computes direct mecanum motor powers matching BasicFieldCentricTeleOp.
+     * Computes direct mecanum motor powers matching BasicFieldCentricTeleOp,
+     * applying per-motor power scalars for drift compensation.
      */
     private void driveMotors(double robotX, double robotY, double rotation) {
-        double fl = robotX - robotY - rotation;
-        double fr = robotX + robotY + rotation;
-        double bl = robotX + robotY - rotation;
-        double br = robotX - robotY + rotation;
+        double fl = (robotX - robotY - rotation) * LEFT_FRONT_SCALAR;
+        double fr = (robotX + robotY + rotation) * RIGHT_FRONT_SCALAR;
+        double bl = (robotX + robotY - rotation) * LEFT_REAR_SCALAR;
+        double br = (robotX - robotY + rotation) * RIGHT_REAR_SCALAR;
 
         double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
                 Math.max(Math.abs(bl), Math.abs(br))));
@@ -150,6 +157,21 @@ public class DriveSubsystem extends SubsystemBase {
         rightFront.setPower(fr);
         leftRear.setPower(bl);
         rightRear.setPower(br);
+    }
+
+    /**
+     * Updates all drivetrain motor scaling coefficients to correct for drive drift.
+     *
+     * @param lf left-front power scalar (e.g. 0.95)
+     * @param rf right-front power scalar (e.g. 1.0)
+     * @param lr left-rear power scalar (e.g. 0.95)
+     * @param rr right-rear power scalar (e.g. 1.0)
+     */
+    public void setMotorScalars(double lf, double rf, double lr, double rr) {
+        LEFT_FRONT_SCALAR  = lf;
+        RIGHT_FRONT_SCALAR = rf;
+        LEFT_REAR_SCALAR   = lr;
+        RIGHT_REAR_SCALAR  = rr;
     }
 
     /**
@@ -196,6 +218,10 @@ public class DriveSubsystem extends SubsystemBase {
             telemetry.addData("Drive X", "%.2f", pose.x());
             telemetry.addData("Drive Y", "%.2f", pose.y());
             telemetry.addData("Drive Heading (°)", "%.2f", Math.toDegrees(pose.heading()));
+            if (LEFT_FRONT_SCALAR != 1.0 || RIGHT_FRONT_SCALAR != 1.0 || LEFT_REAR_SCALAR != 1.0 || RIGHT_REAR_SCALAR != 1.0) {
+                telemetry.addData("Motor Trim (LF,RF,LR,RR)", "%.2f, %.2f, %.2f, %.2f",
+                        LEFT_FRONT_SCALAR, RIGHT_FRONT_SCALAR, LEFT_REAR_SCALAR, RIGHT_REAR_SCALAR);
+            }
         }
     }
 

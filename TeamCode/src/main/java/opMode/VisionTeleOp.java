@@ -6,6 +6,7 @@ import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.bylazar.gamepad.GamepadManager;
 import com.bylazar.telemetry.Plugin;
 import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
@@ -275,8 +276,37 @@ public abstract class VisionTeleOp extends CommandOpMode {
         loopTimer.reset();
 
         try {
-            gamepad1.copy(com.bylazar.gamepad.Plugin.INSTANCE.getFirstManager().asCombinedFTCGamepad(gamepad1));
-            gamepad2.copy(com.bylazar.gamepad.Plugin.INSTANCE.getSecondManager().asCombinedFTCGamepad(gamepad2));
+            GamepadManager mgr1 = com.bylazar.gamepad.Plugin.INSTANCE.getFirstManager();
+            if (Math.abs(mgr1.getLeftStickX()) > 0.02) gamepad1.left_stick_x = (float) mgr1.getLeftStickX();
+            if (Math.abs(mgr1.getLeftStickY()) > 0.02) gamepad1.left_stick_y = (float) mgr1.getLeftStickY();
+            if (Math.abs(mgr1.getRightStickX()) > 0.02) gamepad1.right_stick_x = (float) mgr1.getRightStickX();
+            if (Math.abs(mgr1.getRightStickY()) > 0.02) gamepad1.right_stick_y = (float) mgr1.getRightStickY();
+            if (mgr1.getL2() > 0.02) gamepad1.left_trigger = (float) mgr1.getL2();
+            if (mgr1.getR2() > 0.02) gamepad1.right_trigger = (float) mgr1.getR2();
+            if (mgr1.getL1()) gamepad1.left_bumper = true;
+            if (mgr1.getR1()) gamepad1.right_bumper = true;
+            if (mgr1.getCross()) gamepad1.a = true;
+            if (mgr1.getCircle()) gamepad1.b = true;
+            if (mgr1.getSquare()) gamepad1.x = true;
+            if (mgr1.getTriangle()) gamepad1.y = true;
+            if (mgr1.getDpadUp()) gamepad1.dpad_up = true;
+            if (mgr1.getDpadDown()) gamepad1.dpad_down = true;
+            if (mgr1.getDpadLeft()) gamepad1.dpad_left = true;
+            if (mgr1.getDpadRight()) gamepad1.dpad_right = true;
+
+            GamepadManager mgr2 = com.bylazar.gamepad.Plugin.INSTANCE.getSecondManager();
+            if (Math.abs(mgr2.getLeftStickX()) > 0.02) gamepad2.left_stick_x = (float) mgr2.getLeftStickX();
+            if (Math.abs(mgr2.getLeftStickY()) > 0.02) gamepad2.left_stick_y = (float) mgr2.getLeftStickY();
+            if (Math.abs(mgr2.getRightStickX()) > 0.02) gamepad2.right_stick_x = (float) mgr2.getRightStickX();
+            if (Math.abs(mgr2.getRightStickY()) > 0.02) gamepad2.right_stick_y = (float) mgr2.getRightStickY();
+            if (mgr2.getL2() > 0.02) gamepad2.left_trigger = (float) mgr2.getL2();
+            if (mgr2.getR2() > 0.02) gamepad2.right_trigger = (float) mgr2.getR2();
+            if (mgr2.getL1()) gamepad2.left_bumper = true;
+            if (mgr2.getR1()) gamepad2.right_bumper = true;
+            if (mgr2.getCross()) gamepad2.a = true;
+            if (mgr2.getCircle()) gamepad2.b = true;
+            if (mgr2.getSquare()) gamepad2.x = true;
+            if (mgr2.getTriangle()) gamepad2.y = true;
         } catch (Throwable ignored) {}
 
         // 1. Clear LynxModule bulk cache at loop start for fresh single-read
