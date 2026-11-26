@@ -34,16 +34,16 @@ public class TurretShooterSubsystem extends SubsystemBase {
     public static DcMotorSimple.Direction MOTOR_2_DIRECTION = DcMotorSimple.Direction.REVERSE;
 
     // ── PID & Feedforward Coefficients ───────────────────────────────────────
-    public static double kP   = 0.0015;
-    public static double kI   = 0.001;
-    public static double kD   = 0.00001;
-    public static double maxI = 0.3; // Integral anti-windup limit
+    public static double kP   = 0.0004;
+    public static double kI   = 0.00005;
+    public static double kD   = 0.00002;
+    public static double maxI = 0.05; // Integral anti-windup limit
 
     // ── Rapid Post-Shot Recovery / Bang-Bang Boost ───────────────────────────
-    /** Enable full-power acceleration boost when velocity drops after a shot. */
-    public static boolean useRecoveryBoost      = true;
-    /** RPM drop threshold below target to activate max-power recovery boost. */
-    public static double recoveryThresholdRPM   = 25.0;
+    /** Enable full-power acceleration boost when velocity drops significantly after a shot. */
+    public static boolean useRecoveryBoost      = false;
+    /** RPM drop threshold below target to activate max-power recovery boost (e.g. 200 RPM during ball exit). */
+    public static double recoveryThresholdRPM   = 200.0;
     /** Motor power (0.0 to 1.0) applied during fast recovery boost. */
     public static double recoveryPower          = 1.0;
 

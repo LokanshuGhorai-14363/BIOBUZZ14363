@@ -61,7 +61,7 @@ public class TransferSubsystem extends SubsystemBase {
 
         transferMotor = hardwareMap.get(DcMotorEx.class, motorName);
         transferMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        transferMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+        transferMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         transferMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         transferMotor.setPower(0.0);
     }
