@@ -84,7 +84,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
     private boolean dynamicVelocityEnabled = true;
 
     // Gamepad 2 (Co-Driver) Manual Turret Control State
-    private boolean manualTurretMode = false; // false = Odometry Auto-Tracking, true = Manual (Gamepad 2 Left Stick X)
+    protected boolean manualTurretMode = false; // false = Auto-Tracking, true = Manual (Gamepad 2 Left Stick X)
 
     public VisionTeleOp(Alliance alliance) {
         this.alliance = alliance;
@@ -154,7 +154,7 @@ public abstract class VisionTeleOp extends CommandOpMode {
         telemetry.update();
     }
 
-    private void configureDefaultCommands() {
+    protected void configureDefaultCommands() {
         // Default Drive: Field-centric with PID auto-aim toward active HIVE goal
         driveSubsystem.setDefaultCommand(new GoalTrackingDriveCommand(
                 driveSubsystem,
