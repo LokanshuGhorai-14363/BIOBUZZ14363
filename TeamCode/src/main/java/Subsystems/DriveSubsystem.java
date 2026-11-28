@@ -1,6 +1,7 @@
 package Subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -20,6 +21,7 @@ import Subsystems.VisionSubsystem.Alliance;
  * fast kinematic math for maximum speed and zero lag. Pose tracking reads the goBILDA
  * Pinpoint directly (no Pedro Follower; Pedro is only used in auton).</p>
  */
+@Configurable
 public class DriveSubsystem extends SubsystemBase {
 
     // Pinpoint setup — keep in sync with Constants.localizerConfig

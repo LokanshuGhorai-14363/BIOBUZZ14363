@@ -1,5 +1,6 @@
 package util;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.math.Pose;
 import Subsystems.VisionSubsystem.Alliance;
 
@@ -39,6 +40,7 @@ import Subsystems.VisionSubsystem.Alliance;
  * purely on {@link Pose} data and an {@link Alliance} enum so it can be tested
  * off-robot and reused across OpModes.
  */
+@Configurable
 public class HiveGoalTracker {
 
     // ═══════════════════════════════════════════════════════════════════════════

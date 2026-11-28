@@ -1,26 +1,17 @@
 package util;
 
+import com.bylazar.configurables.annotations.Configurable;
+
 /**
  * BallisticsConfig — Centralized live-tunable parameters for projectile ballistics.
  *
  * <h3>How to use with FTC Dashboard / Panels</h3>
  * All fields are {@code public static} and <b>non-{@code final}</b> so they appear
- * as editable entries when the class is annotated with {@code @Config} (or
- * {@code @Configurable} depending on your dashboard plugin).  Every field is read
+ * as editable entries when the class is annotated with {@code @Configurable}. Every field is read
  * fresh each control-loop cycle by {@link BallisticsCalculator} — nothing is cached
  * at construction time.
- *
- * <h3>Units</h3>
- * <ul>
- *   <li>All <b>distances</b> and <b>heights</b> are in <b>inches</b>.</li>
- *   <li>The <b>launch angle</b> is in <b>degrees</b> (converted to radians internally).</li>
- *   <li>Gravity is in <b>inches / s²</b>.</li>
- *   <li>Flywheel circumference is in <b>inches</b>.</li>
- *   <li>Velocity output is in <b>ticks / s</b> (matching
- *       {@link Subsystems.TurretShooterSubsystem#setTargetVelocity}).</li>
- * </ul>
  */
-// @com.acmerobotics.dashboard.config.Config   // Uncomment if FTC Dashboard is in build.gradle
+@Configurable
 public class BallisticsConfig {
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -1,6 +1,7 @@
 package Subsystems;
 
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -21,6 +22,7 @@ import java.util.Locale;
  *   <li>{@code shooterMotor2} — Secondary flywheel motor ("shooterMotor2") on opposite end of shaft.</li>
  * </ul>
  */
+@Configurable
 public class TurretShooterSubsystem extends SubsystemBase {
 
     // ── Constants ─────────────────────────────────────────────────────────────

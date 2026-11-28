@@ -5,6 +5,7 @@ import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.arcrobotics.ftclib.command.button.GamepadButton;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.gamepad.GamepadManager;
 import com.bylazar.telemetry.Plugin;
 import com.pedropathing.math.Pose;
@@ -69,7 +70,7 @@ import util.PoseStorage;
  * {@code @Config} annotation above this class to tune these constants live from a laptop browser.
  */
 @TeleOp(name = "Shooter Tuning TeleOp", group = "Tuning")
-// @com.acmerobotics.dashboard.config.Config // <-- Uncomment if com.acmerobotics.dashboard is added to build.gradle
+@Configurable
 public class ShooterTuningTeleOp extends CommandOpMode {
 
     // =========================================================================
