@@ -25,6 +25,8 @@ import Subsystems.TurretShooterSubsystem;
 import Subsystems.TurretSubsystem;
 import Subsystems.VisionSubsystem;
 import Subsystems.VisionSubsystem.Alliance;
+import util.BallisticsCalculator;
+import util.BallisticsConfig;
 import util.HiveGoalTracker;
 import util.MultipleTelemetry;
 import util.PoseStorage;
@@ -71,40 +73,40 @@ import util.PoseStorage;
 public class ShooterTuningTeleOp extends CommandOpMode {
 
     // =========================================================================
-    //  Physical Hardware Constants (TODO: Calibrate with physical robot)
+    //  Physical Hardware Constants — now read from BallisticsConfig
+    // =========================================================================
+    //  WHEEL_CIRCUMFERENCE_CM, LAUNCH_ANGLE_DEGREES, TARGET_HEIGHT_INCHES,
+    //  TARGET_DEPTH_OFFSET_INCHES, and LAUNCH_EFFICIENCY have been migrated to
+    //  util.BallisticsConfig (all in INCHES, not cm).  The fields below are kept
+    //  only as convenient UI aliases that sync TO BallisticsConfig each cycle so
+    //  both Dashboard pages (this class and BallisticsConfig) stay consistent.
+    //
+    //  Prefer editing BallisticsConfig directly for new code.
     // =========================================================================
 
     /**
-     * TODO: Measure exact outer circumference of the flywheel in centimeters.
-     * Formula: Circumference = π * Diameter.
-     * Default Placeholder: 21.99 cm (~7.0 cm / 2.75" compliant wheel: Math.PI * 7.0 = 21.991 cm).
+     * @deprecated Use {@link BallisticsConfig#WHEEL_CIRCUMFERENCE_IN} (inches) instead.
+     *             This field exists only for backward-compatible Dashboard display.
      */
     public static double WHEEL_CIRCUMFERENCE_CM = 21.99;
 
     /**
-     * TODO: Measure fixed physical launch angle of shooter exit ramp in degrees from horizontal.
-     * Converted automatically to radians inside {@link #calculateBaseRPM(double)}.
-     * Default Placeholder: 45.0 degrees.
+     * @deprecated Use {@link BallisticsConfig#LAUNCH_ANGLE_DEG} instead.
      */
     public static double LAUNCH_ANGLE_DEGREES = 45.0;
 
     /**
-     * TODO: Measure vertical height difference (Δz) in inches from shooter release point
-     * to the center entry of the goal opening.
-     * Default Placeholder: 36.0 inches.
+     * @deprecated Use {@link BallisticsConfig#TARGET_HEIGHT_IN} instead.
      */
     public static double TARGET_HEIGHT_INCHES = 36.0;
 
     /**
-     * Aiming depth offset in inches into the center-depth of the goal (default 3.0").
-     * Shifts target point past the front lip directly into the bucket center.
+     * @deprecated Use {@link BallisticsConfig#TARGET_DEPTH_OFFSET_IN} instead.
      */
     public static double TARGET_DEPTH_OFFSET_INCHES = 3.0;
 
     /**
-     * Single-wheel shooter exit efficiency / slip factor (0.0 to 1.0).
-     * For a single flywheel with a fixed curved hood, pure rolling element exit gives
-     * v_element ≈ 0.50 * v_surface. Calibrate between 0.45 and 0.60 based on compression.
+     * @deprecated Use {@link BallisticsConfig#LAUNCH_EFFICIENCY} instead.
      */
     public static double LAUNCH_EFFICIENCY = 0.50;
 
@@ -407,58 +409,61 @@ public class ShooterTuningTeleOp extends CommandOpMode {
     // =========================================================================
 
     private void computeBallistics(Pose currentPose) {
+        // ── 0. Sync legacy Dashboard aliases → BallisticsConfig ──────────────
+        //    (So that edits made via THIS class's Dashboard fields propagate
+        //     into the shared model for the next cycle.)
+        BallisticsConfig.LAUNCH_ANGLE_DEG       = LAUNCH_ANGLE_DEGREES;
+        BallisticsConfig.TARGET_HEIGHT_IN        = TARGET_HEIGHT_INCHES;
+        BallisticsConfig.TARGET_DEPTH_OFFSET_IN  = TARGET_DEPTH_OFFSET_INCHES;
+        BallisticsConfig.LAUNCH_EFFICIENCY       = LAUNCH_EFFICIENCY;
+        BallisticsConfig.WHEEL_CIRCUMFERENCE_IN  = WHEEL_CIRCUMFERENCE_CM / 2.54; // cm → in
+        BallisticsConfig.TUNING_RPM_MULTIPLIER   = COMPROMISE_MULTIPLIER;
+        BallisticsConfig.TUNING_RPM_OFFSET       = COMPROMISE_OFFSET_RPM;
+
+        // ── 1. Determine horizontal distance ─────────────────────────────────
         if (aimMode == AimMode.ANALYTICAL_ODOMETRY) {
             currentDistanceInches = (goalTracker != null) ? goalTracker.getDistanceInches() : 60.0;
         } else {
             currentDistanceInches = FIXED_TEST_DISTANCES_INCHES[fixedDistanceIndex];
         }
 
-        // 1. Calculate Base RPM from pure projectile kinematics
-        calculatedBaseRPM = calculateBaseRPM(currentDistanceInches);
+        // ── 2. Delegate to centralized BallisticsCalculator ──────────────────
+        calculatedTargetRPM = BallisticsCalculator.computeTargetRPM(currentDistanceInches);
 
-        // 2. Apply unified tuning equation: Target RPM = (Base RPM * Multiplier) + Offset RPM
-        double rawTarget = (calculatedBaseRPM * COMPROMISE_MULTIPLIER) + COMPROMISE_OFFSET_RPM;
+        // Also compute the "base RPM" (before tuning multiplier/offset) for
+        // telemetry by temporarily neutralizing the tuning knobs.
+        double savedMult   = BallisticsConfig.TUNING_RPM_MULTIPLIER;
+        double savedOffset = BallisticsConfig.TUNING_RPM_OFFSET;
+        BallisticsConfig.TUNING_RPM_MULTIPLIER = 1.0;
+        BallisticsConfig.TUNING_RPM_OFFSET     = 0.0;
+        calculatedBaseRPM = BallisticsCalculator.computeTargetRPM(currentDistanceInches);
+        BallisticsConfig.TUNING_RPM_MULTIPLIER = savedMult;
+        BallisticsConfig.TUNING_RPM_OFFSET     = savedOffset;
 
-        // Clamp to motor velocity physical capabilities
-        calculatedTargetRPM = Math.max(0.0, Math.min(TurretShooterSubsystem.MOTOR_MAX_RPM, rawTarget));
+        // ── 3. Clamp to motor physical limits ────────────────────────────────
+        calculatedTargetRPM = Math.max(0.0, Math.min(TurretShooterSubsystem.MOTOR_MAX_RPM, calculatedTargetRPM));
     }
 
     /**
-     * Analytical Projectile Kinematics formula.
-     * Computes the theoretical flywheel Base RPM required to reach the target goal.
+     * Analytical Projectile Kinematics formula — now delegates to
+     * {@link BallisticsCalculator#computeTargetRPM(double)}.
+     * <p>
+     * Kept for backward compatibility; new code should call
+     * {@code BallisticsCalculator.computeTargetRPM()} directly.
      *
      * @param horizontalDistanceInches Horizontal distance to target lip in inches.
-     * @return Ideal base flywheel RPM before empirical multipliers.
+     * @return Ideal base flywheel RPM (before empirical multipliers).
      */
     public static double calculateBaseRPM(double horizontalDistanceInches) {
-        double totalDistInches = Math.max(1.0, horizontalDistanceInches + TARGET_DEPTH_OFFSET_INCHES);
-
-        // Convert dimensions to centimeters for standard metric kinematics
-        double x_cm = totalDistInches * 2.54;
-        double y_cm = TARGET_HEIGHT_INCHES * 2.54;
-        double g_cm_s2 = 980.665; // Gravity in cm/s²
-
-        double thetaRad = Math.toRadians(LAUNCH_ANGLE_DEGREES);
-        double cosTheta = Math.cos(thetaRad);
-        double tanTheta = Math.tan(thetaRad);
-
-        // Check if trajectory is geometrically achievable at this launch angle
-        double denominator = 2.0 * (x_cm * tanTheta - y_cm);
-        if (denominator <= 0.0 || Math.abs(cosTheta) < 1e-4) {
-            // Trajectory angle too shallow for this distance: return conservative safe speed
-            return TurretShooterSubsystem.outtakeVelocityShort;
-        }
-
-        // Parabolic trajectory release velocity in cm/s
-        double v0_cm_s = (x_cm / cosTheta) * Math.sqrt(g_cm_s2 / denominator);
-
-        // Tangential flywheel surface velocity required to launch ball at v0
-        double vSurface_cm_s = v0_cm_s / Math.max(0.1, LAUNCH_EFFICIENCY);
-
-        // Convert surface linear speed into motor RPM: RPM = (v_surface * 60) / Circumference
-        double baseRPM = (vSurface_cm_s * 60.0) / Math.max(0.1, WHEEL_CIRCUMFERENCE_CM);
-
-        return Math.max(0.0, Math.min(TurretShooterSubsystem.MOTOR_MAX_RPM, baseRPM));
+        // Temporarily neutralize tuning multiplier/offset to get "base" RPM
+        double savedMult   = BallisticsConfig.TUNING_RPM_MULTIPLIER;
+        double savedOffset = BallisticsConfig.TUNING_RPM_OFFSET;
+        BallisticsConfig.TUNING_RPM_MULTIPLIER = 1.0;
+        BallisticsConfig.TUNING_RPM_OFFSET     = 0.0;
+        double baseRPM = BallisticsCalculator.computeTargetRPM(horizontalDistanceInches);
+        BallisticsConfig.TUNING_RPM_MULTIPLIER = savedMult;
+        BallisticsConfig.TUNING_RPM_OFFSET     = savedOffset;
+        return baseRPM;
     }
 
     // =========================================================================

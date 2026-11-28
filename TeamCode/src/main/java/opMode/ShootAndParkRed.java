@@ -212,14 +212,38 @@ public class ShootAndParkRed extends OpMode {
 
     private void trackGoalAndAim() {
         Pose currentPose = follower.pose();
-        visionSubsystem.getGoalTracker().update(currentPose);
+        util.HiveGoalTracker tracker = visionSubsystem.getGoalTracker();
+        tracker.update(currentPose);
+
+        // ── 1. Turret aiming ─────────────────────────────────────────────────
         double targetTurretAngle = visionSubsystem.calculateOdometryTurretAngle(currentPose);
         turretSubsystem.setAngle(targetTurretAngle);
 
-        double suggestedVel = visionSubsystem.getGoalTracker().getSuggestedLaunchVelocity();
-        double velocity = (Double.isNaN(suggestedVel) || suggestedVel < TurretShooterSubsystem.outtakeVelocityShort)
-                ? TurretShooterSubsystem.outtakeVelocityShort
-                : suggestedVel;
+        // ── 2. Ballistics-based shooter velocity ─────────────────────────────
+        double distanceIn     = tracker.getDistanceInches();
+        double suggestedVel   = tracker.getSuggestedLaunchVelocity();
+
+        // Safe fallback: if the model returns NaN or an unusably low speed,
+        // revert to the hardcoded outtakeVelocityShort default.
+        boolean usedFallback = false;
+        double velocity;
+        if (Double.isNaN(suggestedVel) || suggestedVel < TurretShooterSubsystem.outtakeVelocityShort) {
+            velocity = TurretShooterSubsystem.outtakeVelocityShort;
+            usedFallback = true;
+        } else {
+            velocity = suggestedVel;
+        }
         turretShooterSubsystem.setTargetVelocity(velocity);
+
+        // ── 3. Telemetry diagnostics ─────────────────────────────────────────
+        if (telemetry != null) {
+            double targetRPM  = turretShooterSubsystem.getTargetRPM();
+            double currentRPM = turretShooterSubsystem.getCurrentRPM();
+            telemetry.addData("Goal Dist (in)", String.format(java.util.Locale.US, "%.1f", distanceIn));
+            telemetry.addData("Ballistics Vel (tps)", String.format(java.util.Locale.US, "%.0f%s",
+                    velocity, usedFallback ? " [FALLBACK]" : ""));
+            telemetry.addData("Target / Current RPM",
+                    String.format(java.util.Locale.US, "%.0f / %.0f", targetRPM, currentRPM));
+        }
     }
 }

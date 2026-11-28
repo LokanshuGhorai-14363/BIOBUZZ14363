@@ -87,6 +87,7 @@ public class HiveGoalTracker {
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  Launcher Velocity Mapping (distance → ticks/sec)
+    //  Legacy linear-interpolation bounds kept for reference / fallback.
     // ═══════════════════════════════════════════════════════════════════════════
 
     /** Distance (inches) at or below which we use the minimum launch velocity. */
@@ -95,11 +96,18 @@ public class HiveGoalTracker {
     /** Distance (inches) at or above which we use the maximum launch velocity. */
     public static double DIST_MAX_IN = 72.0;
 
-    /** Flywheel velocity (ticks/sec) for shortest-range shots. */
+    /** Flywheel velocity (ticks/sec) for shortest-range shots (legacy linear fallback). */
     public static double VEL_MIN_TPS = 925.0;
 
-    /** Flywheel velocity (ticks/sec) for longest-range shots. */
+    /** Flywheel velocity (ticks/sec) for longest-range shots (legacy linear fallback). */
     public static double VEL_MAX_TPS = 1075.0;
+
+    /**
+     * When {@code true} (default), {@link #getSuggestedLaunchVelocity()} uses the
+     * physics-based {@link BallisticsCalculator}.  Set to {@code false} to revert
+     * to the legacy linear interpolation for quick debugging.
+     */
+    public static boolean USE_BALLISTICS_MODEL = true;
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  Instance State
@@ -323,24 +331,52 @@ public class HiveGoalTracker {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Launcher Velocity Helper (Optimized Zero-Division Fast-Path)
+    //  Launcher Velocity Helper
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private static final double DIST_RANGE_IN = DIST_MAX_IN - DIST_MIN_IN;
-    private static final double VEL_RANGE_TPS = VEL_MAX_TPS - VEL_MIN_TPS;
-    private static final double VEL_SLOPE     = VEL_RANGE_TPS / DIST_RANGE_IN;
-
     /**
-     * Maps current distance to suggested flywheel velocity (ticks/sec)
-     * using zero-division fast-path linear interpolation.
+     * Computes the suggested flywheel velocity (ticks/sec) for the current
+     * cached distance.
+     *
+     * <p>When {@link #USE_BALLISTICS_MODEL} is {@code true} (default), the
+     * full projectile-kinematics model from {@link BallisticsCalculator} is
+     * used.  All tuning knobs (gravity, launch angle, efficiency, etc.) are
+     * read live from {@link BallisticsConfig} each cycle.
+     *
+     * <p>When {@code USE_BALLISTICS_MODEL} is {@code false}, the legacy
+     * linear interpolation between [{@link #VEL_MIN_TPS}, {@link #VEL_MAX_TPS}]
+     * is used as a simple fallback.
      *
      * @return suggested flywheel velocity in ticks per second
      */
     public double getSuggestedLaunchVelocity() {
+        if (USE_BALLISTICS_MODEL) {
+            // Delegate to centralized physics model — reads BallisticsConfig live
+            double vel = BallisticsCalculator.computeTargetVelocityTps(cachedDistanceIn);
+            // Guard: if the calculator returned NaN or non-positive, fall back
+            if (Double.isNaN(vel) || vel <= 0.0) {
+                return BallisticsConfig.FALLBACK_VELOCITY_TPS;
+            }
+            return vel;
+        }
+
+        // Legacy linear interpolation fallback
+        double distRange = DIST_MAX_IN - DIST_MIN_IN;
+        if (distRange <= 0.0) return VEL_MIN_TPS; // safety
         double distOffset = cachedDistanceIn - DIST_MIN_IN;
         if (distOffset <= 0.0) return VEL_MIN_TPS;
-        if (distOffset >= DIST_RANGE_IN) return VEL_MAX_TPS;
-        return VEL_MIN_TPS + distOffset * VEL_SLOPE;
+        if (distOffset >= distRange) return VEL_MAX_TPS;
+        double slope = (VEL_MAX_TPS - VEL_MIN_TPS) / distRange;
+        return VEL_MIN_TPS + distOffset * slope;
+    }
+
+    /**
+     * Returns the suggested flywheel speed as RPM (convenience wrapper).
+     *
+     * @return suggested flywheel RPM
+     */
+    public double getSuggestedLaunchRPM() {
+        return BallisticsCalculator.ticksPerSecToRPM(getSuggestedLaunchVelocity());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
